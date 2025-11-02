@@ -47,7 +47,6 @@ import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
-import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.StreamResponse
@@ -575,7 +574,8 @@ suspend fun MediampPlayer.playUri(
 fun rememberPlayMediaFunction(
     guid: String,
     player: MediampPlayer,
-    mediaGuid: String? =  null
+    mediaGuid: String? = null,
+    currentAudioGuid: String? = null
 ): () -> Unit {
     val streamViewModel: StreamViewModel = koinInject()
     val playPlayViewModel: PlayPlayViewModel = koinInject()
@@ -584,7 +584,7 @@ fun rememberPlayMediaFunction(
     val playRecordViewModel: PlayRecordViewModel = koinInject()
     val scope = rememberCoroutineScope()
     val playerManager = LocalPlayerManager.current
-    return remember(streamViewModel, playPlayViewModel, guid, player, playerManager, mediaGuid) {
+    return remember(streamViewModel, playPlayViewModel, guid, player, playerManager, mediaGuid, currentAudioGuid) {
         {
             scope.launch {
                 playMedia(
@@ -596,7 +596,8 @@ fun rememberPlayMediaFunction(
                     playPlayViewModel = playPlayViewModel,
                     playRecordViewModel = playRecordViewModel,
                     playerManager = playerManager,
-                    mediaGuid = mediaGuid
+                    mediaGuid = mediaGuid,
+                    currentAudioGuid = currentAudioGuid
                 )
             }
         }
@@ -612,7 +613,8 @@ private suspend fun playMedia(
     playPlayViewModel: PlayPlayViewModel,
     playRecordViewModel: PlayRecordViewModel,
     playerManager: PlayerManager,
-    mediaGuid: String?
+    mediaGuid: String?,
+    currentAudioGuid: String?
 ) {
     try {
         // 获取播放信息
@@ -622,7 +624,8 @@ private suspend fun playMedia(
         // 获取流信息
         val streamInfo = fetchStreamInfo(playInfoResponse, userInfoViewModel, streamViewModel)
         val videoStream = streamInfo.videoStream
-        val audioStream = streamInfo.audioStreams.firstOrNull()
+        val audioStream = streamInfo.audioStreams.first { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
+        val audioGuid = currentAudioGuid ?: audioStream.guid
         val subtitleStream = streamInfo.subtitleStreams?.firstOrNull()
         val fileStream = streamInfo.fileStream
         // 显示播放器
@@ -649,7 +652,7 @@ private suspend fun playMedia(
         }
 
         // 构造播放请求
-        val playRequest = createPlayRequest(videoStream, fileStream, audioStream, subtitleStream)
+        val playRequest = createPlayRequest(videoStream, fileStream, audioGuid, subtitleStream)
 
         var playLink = ""
         // 获取播放链接
@@ -715,14 +718,14 @@ private suspend fun fetchStreamInfo(
 private fun createPlayRequest(
     videoStream: VideoStream,
     fileStream: FileInfo,
-    audioStream: AudioStream?,
+    audioGuid: String,
     subtitleStream: SubtitleStream?
 ): PlayPlayRequest {
     return PlayPlayRequest(
         videoGuid = videoStream.guid,
         mediaGuid = fileStream.guid,
         audioEncoder = "aac",
-        audioGuid = audioStream?.guid ?: "",
+        audioGuid = audioGuid,
         bitrate = videoStream.bps,
         channels = 2,
         forcedSdr = 0,

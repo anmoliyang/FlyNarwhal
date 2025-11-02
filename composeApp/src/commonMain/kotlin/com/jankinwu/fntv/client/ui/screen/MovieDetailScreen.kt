@@ -1,6 +1,7 @@
 package com.jankinwu.fntv.client.ui.screen
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,12 +72,14 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
 import com.jankinwu.fntv.client.data.convertor.formatSeconds
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
+import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.HeartFilled
@@ -100,7 +103,9 @@ import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
+import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.collections.mutableMapOf
 
 @Composable
 fun MovieDetailScreen(
@@ -181,6 +186,7 @@ fun MovieDetailScreen(
             is UiState.Error -> {
                 println("message: ${(playInfoUiState as UiState.Error).message}")
             }
+
             else -> {}
         }
     }
@@ -204,7 +210,8 @@ fun MovieDetailScreen(
                                 .fillMaxWidth(),
                             contentAlignment = Alignment.TopCenter
                         ) {
-                            val backdropsImg = if (!itemData?.backdrops.isNullOrBlank()) itemData?.backdrops else itemData?.posters
+                            val backdropsImg =
+                                if (!itemData?.backdrops.isNullOrBlank()) itemData?.backdrops else itemData?.posters
                             // 背景图
                             SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(PlatformContext.INSTANCE)
@@ -352,23 +359,46 @@ fun MediaInfo(
     playInfoResponse: PlayInfoResponse
 ) {
     var mediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
-    var selectedSourceIndex by remember { mutableIntStateOf(0) }
-    val totalDuration = streamData.videoStreams[selectedSourceIndex].duration
+    var selectedVideoStreamIndex by remember { mutableIntStateOf(0) }
+    val selectedAudioStreamIndexMap = remember { mutableMapOf<String, String>() }
+    var currentAudioStreamGuid: String? by remember { mutableStateOf("") }
+    var currentAudioStream: AudioStream? by remember { mutableStateOf(null) }
+    var currentAudioStreamList by remember { mutableStateOf<List<AudioStream>>(emptyList()) }
+    var totalDuration by remember { mutableIntStateOf(0) }
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
     val formatReminingDuration = formatSeconds(reminingDuration)
     val formatTotalDuration = formatSeconds(totalDuration)
     LaunchedEffect(mediaGuid) {
         streamData.videoStreams.forEach {
-            println("it.mediaGuid: ${it.mediaGuid}")
             if (it.mediaGuid == mediaGuid) {
-                selectedSourceIndex = streamData.videoStreams.indexOf(it)
+                selectedVideoStreamIndex = streamData.videoStreams.indexOf(it)
+                totalDuration = streamData.videoStreams[selectedVideoStreamIndex].duration
+            }
+        }
+        currentAudioStreamList = streamData.audioStreams
+            .filter {
+                it.mediaGuid == mediaGuid
+            }.sortedByDescending { it.index }
+        currentAudioStreamGuid = selectedAudioStreamIndexMap[mediaGuid]
+    }
+    LaunchedEffect(selectedVideoStreamIndex) {
+        mediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
+    }
+    LaunchedEffect(playInfoResponse, streamData) {
+        // 如果和playInfo的audioGuid相等，则使用，否则使用默认
+        streamData.audioStreams.forEach { audioStream ->
+            if (audioStream.guid == playInfoResponse.audioGuid) {
+                selectedAudioStreamIndexMap[audioStream.mediaGuid] = audioStream.guid
+            } else if (audioStream.isDefault == 1) {
+                selectedAudioStreamIndexMap[audioStream.mediaGuid] = audioStream.guid
             }
         }
     }
-    LaunchedEffect(selectedSourceIndex) {
-        mediaGuid = streamData.videoStreams[selectedSourceIndex].mediaGuid
+    LaunchedEffect(currentAudioStreamGuid) {
+        currentAudioStream = streamData.audioStreams.firstOrNull {
+            it.guid == currentAudioStreamGuid
+        }
     }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -392,13 +422,20 @@ fun MediaInfo(
             formatTotalDuration,
             guid,
             toastManager,
-            mediaGuid
+            mediaGuid,
+            selectedVideoStreamIndex,
+            streamData,
+            currentAudioStream,
+            currentAudioStreamList,
+            onAudioSelected = {
+                currentAudioStreamGuid = it
+            },
         )
 
         if (streamData.videoStreams.size > 1) {
-            MediaSourceTags(modifier = Modifier.padding(bottom = 16.dp), streamData, onClick = {
-                selectedSourceIndex = it
-            }, selectedSourceIndex)
+            MediaSourceBoxes(modifier = Modifier.padding(bottom = 16.dp), streamData, onClick = {
+                selectedVideoStreamIndex = it
+            }, selectedVideoStreamIndex)
         }
 
         MediaDescription(modifier = Modifier.padding(bottom = 32.dp), itemData)
@@ -406,15 +443,15 @@ fun MediaInfo(
 }
 
 @Composable
-fun MediaSourceTags(
+fun MediaSourceBoxes(
     modifier: Modifier = Modifier,
     streamData: StreamListResponse,
     onClick: (index: Int) -> Unit,
-    selectedSourceIndex: Int
+    selectedVideoStreamIndex: Int
 ) {
-    var selectedTagIndex by remember { mutableIntStateOf(selectedSourceIndex) }
-    LaunchedEffect(selectedSourceIndex) {
-        selectedTagIndex = selectedSourceIndex
+    var selectedTagIndex by remember { mutableIntStateOf(selectedVideoStreamIndex) }
+    LaunchedEffect(selectedVideoStreamIndex) {
+        selectedTagIndex = selectedVideoStreamIndex
     }
     Row(
         modifier = modifier
@@ -430,7 +467,7 @@ fun MediaSourceTags(
             "${it.resolutionType.uppercase()} $colorRangeType"
         }
         qualityTags.forEachIndexed { index, quality ->
-            QualityTag(
+            VideoSelectionBox(
                 text = quality,
                 onClick = {
                     selectedTagIndex = index // 点击时更新选中索引
@@ -482,7 +519,12 @@ fun MiddleControls(
     formatTotalDuration: String,
     guid: String,
     toastManager: ToastManager,
-    mediaGuid: String
+    mediaGuid: String,
+    selectedVideoStreamIndex: Int,
+    streamData: StreamListResponse,
+    currentAudioStream: AudioStream?,
+    currentAudioStreamList: List<AudioStream>,
+    onAudioSelected: (audioGuid: String) -> Unit
 ) {
     val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
     val iso3166State = tagViewModel.iso3166State.collectAsState().value
@@ -490,7 +532,8 @@ fun MiddleControls(
     val playMedia = rememberPlayMediaFunction(
         guid = guid,
         player = player,
-        mediaGuid = mediaGuid
+        mediaGuid = mediaGuid,
+        currentAudioGuid = currentAudioStream?.guid
     )
     val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
     val favoriteUiState by favoriteViewModel.uiState.collectAsState()
@@ -716,8 +759,9 @@ fun MiddleControls(
             ) {
                 InfoIconText("中文字幕")
 
-                LogoPlaceholder("4k")
-                LogoPlaceholder("HDR")
+                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].resolutionType)
+                MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].colorRangeType)
+                MediaQualityTag(currentAudioStream?.audioType ?: "")
             }
         }
     }
@@ -766,19 +810,17 @@ fun InfoIconText(text: String) {
 }
 
 /**
- * 右上角 Logo 的占位符
+ * 质量标签
  */
 @Composable
-fun LogoPlaceholder(resolution: String) {
-    if (resolution.endsWith("k")) {
+fun MediaQualityTag(qualityTag: String) {
+    if (qualityTag.endsWith("k")) {
         Box(
             modifier = Modifier
-//                .alpha(if (isPosterHovered) 0f else 1f)
-                //                                .align(Alignment.BottomEnd)
                 .padding(2.dp)
                 .background(
                     color = Color.White.copy(alpha = 0.8f),
-                    shape = RoundedCornerShape(3.dp)
+                    shape = RoundedCornerShape(4.dp)
                 )
                 .padding(
                     horizontal = 6.dp,
@@ -787,22 +829,27 @@ fun LogoPlaceholder(resolution: String) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = resolution.uppercase(),
+                text = qualityTag.uppercase(),
                 color = Color.Black.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.ExtraBold
             )
         }
-    } else {
+    } else if (qualityTag.endsWith("p") || qualityTag in listOf("HLG", "Stereo", "SDR") || qualityTag.startsWith("HDR")) {
+        var qualityTag = when (qualityTag) {
+            "Stereo" -> "立体声"
+            "HDR10" -> "HDR"
+            else -> qualityTag
+        }
+        if (qualityTag.endsWith("p")) {
+            qualityTag = qualityTag.dropLast(1)
+        }
         Box(
             modifier = Modifier
-//                .alpha(if (isPosterHovered) 0f else 1f)
-                //                                .align(Alignment.BottomEnd)
-                //                                .padding((8 * scaleFactor).dp)
                 .border(
-                    2.dp,
-                    Color.White.copy(alpha = 0.6f),
-                    RoundedCornerShape(3.dp)
+                    1.5.dp,
+                    Color.Gray,
+                    RoundedCornerShape(4.dp)
                 )
                 .padding(
                     horizontal = 3.dp,
@@ -811,10 +858,20 @@ fun LogoPlaceholder(resolution: String) {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = resolution,
+                text = qualityTag,
                 color = Color.White.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
+            )
+        }
+    } else if (qualityTag in listOf("DolbySurround", "DolbyVision", "DTS", "DolbyAtmos")) {
+        val drawableSource = MediaQualityTagEnums.getDrawableByTagName(qualityTag)
+        if (drawableSource != null) {
+            Image(
+                painterResource(drawableSource),
+                contentDescription = "质量 logo",
+                modifier = Modifier
+                    .height(22.dp)
             )
         }
     }
@@ -870,7 +927,7 @@ fun CircleIconButton(
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun QualityTag(text: String, onClick: () -> Unit, isSelected: Boolean) {
+fun VideoSelectionBox(text: String, onClick: () -> Unit, isSelected: Boolean) {
     var isHovered by remember { mutableStateOf(false) }
     val textColor = if (isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary
     val backgroundColor by animateColorAsState(
