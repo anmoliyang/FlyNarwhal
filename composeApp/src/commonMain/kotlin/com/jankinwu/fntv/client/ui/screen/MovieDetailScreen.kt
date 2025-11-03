@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -101,15 +103,16 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
-import io.github.composefluent.icons.regular.Check
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -393,7 +396,7 @@ fun MediaInfo(
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
     val formatReminingDuration = formatSeconds(reminingDuration)
     val formatTotalDuration = formatSeconds(totalDuration)
-    LaunchedEffect(currentMediaGuid) {
+    LaunchedEffect(currentMediaGuid, guid) {
         streamData.videoStreams.forEach {
             if (it.mediaGuid == currentMediaGuid) {
                 selectedVideoStreamIndex = streamData.videoStreams.indexOf(it)
@@ -406,10 +409,12 @@ fun MediaInfo(
             }.sortedByDescending { it.index }
         currentAudioStreamGuid = mediaGuidAudioGuidMap[currentMediaGuid]
     }
-    LaunchedEffect(selectedVideoStreamIndex) {
+    LaunchedEffect(selectedVideoStreamIndex, guid) {
         currentMediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
     }
-    LaunchedEffect(playInfoResponse, streamData) {
+    LaunchedEffect(guid) {
+        currentMediaGuid = playInfoResponse.mediaGuid
+        mediaGuidAudioGuidMap.clear()
         // 如果和 playInfo 的 audioGuid 相等，则使用，否则使用默认
         streamData.audioStreams.forEach { audioStream ->
             if (audioStream.guid == playInfoResponse.audioGuid) {
@@ -417,11 +422,10 @@ fun MediaInfo(
                 currentAudioStreamGuid = audioStream.guid
             } else if (audioStream.isDefault == 1) {
                 mediaGuidAudioGuidMap[audioStream.mediaGuid] = audioStream.guid
-                currentAudioStreamGuid = audioStream.guid
             }
         }
     }
-    LaunchedEffect(currentAudioStreamGuid) {
+    LaunchedEffect(currentAudioStreamGuid, guid) {
         currentAudioStream = streamData.audioStreams.firstOrNull {
             it.guid == currentAudioStreamGuid
         }
@@ -672,7 +676,7 @@ fun MiddleControls(
 
             // 是否已观看按钮
             CircleIconButton(
-                icon = Icons.Default.Check, description = "已观看",
+                icon = Icons.Regular.Checkmark, description = "已观看",
                 iconColor = if (isWatched) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
                 onClick = {
                     watchedViewModel.toggleWatched(
@@ -814,94 +818,121 @@ fun AudioSelector(
     onAudioSelected: (String) -> Unit,
     iso6392State: UiState<List<QueryTagResponse>>
 ) {
-    val audioOptions = mutableListOf<AudioOptionItem>()
+    println("currentAudioStream: $currentAudioStream")
+    var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
+//    var currentAudioStream by remember(currentAudioStream) {
+//        mutableStateOf(currentAudioStream)
+//    }
     if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
-        val iso6392Map = iso6392State.data.associateBy { it.key }
-        LaunchedEffect(audioStreams) {
-            audioStreams.forEach { audioStream ->
-                audioOptions.add(
-                    AudioOptionItem(
-                        audioGuid = audioStream.guid,
-                        language = iso6392Map[audioStream.language]?.value ?: audioStream.language,
-                        codecName = audioStream.codecName,
-                        channelLayout = audioStream.channelLayout,
-                        isSelected = audioStream.guid == currentAudioStream?.guid
-                    )
+        iso6392Map = iso6392State.data.associateBy { it.key }
+    }
+
+    val audioOptions by remember(audioStreams, iso6392Map, currentAudioStream) {
+        derivedStateOf {
+            audioStreams.map { audioStream ->
+                AudioOptionItem(
+                    audioGuid = audioStream.guid,
+                    language = iso6392Map[audioStream.language]?.value ?: audioStream.language,
+                    codecName = audioStream.codecName,
+                    channelLayout = audioStream.channelLayout,
+                    isSelected = audioStream.guid == currentAudioStream?.guid
                 )
             }
         }
     }
-
-    MenuFlyoutContainer(
-        flyout = {
-            audioOptions.forEach { audioOption ->
-                MenuFlyoutItem(
-                    text = {
-                        Row(
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                verticalArrangement = Arrangement.Center
+    val selectedLanguage = (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
+    if (audioOptions.isNotEmpty()) {
+        val interactionSource = remember { MutableInteractionSource() }
+        val isHovered by interactionSource.collectIsHoveredAsState()
+        MenuFlyoutContainer(
+            flyout = {
+                audioOptions.forEach { audioOption ->
+                    MenuFlyoutItem(
+                        text = {
+                            Row(
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+//                                    .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent)
+                                    .padding(vertical = 8.dp)
+                                    .hoverable(interactionSource)
+                                    .pointerHoverIcon(PointerIcon.Hand)
                             ) {
-                                Text(
-                                    text = audioOption.language,
-                                    color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier
-                                        .width(120.dp)
-                                )
-                                Text(
-                                    text = "${audioOption.codecName} ${audioOption.channelLayout}",
-                                    color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.secondary,
-                                    fontWeight = FontWeight.Normal,
-                                    fontSize = 12.sp,
-                                    modifier = Modifier
-                                        .width(120.dp)
-                                )
+                                Column(
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = audioOption.language,
+                                        color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
+                                        fontWeight = FontWeight.Normal,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier
+                                            .width(120.dp)
+                                    )
+                                    Text(
+                                        text = "${audioOption.codecName} ${audioOption.channelLayout}",
+                                        color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.secondary,
+                                        fontWeight = FontWeight.Normal,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier
+                                            .width(120.dp)
+                                    )
+                                }
+                                if (audioOption.isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Regular.Checkmark,
+                                        contentDescription = "",
+                                        tint = Colors.PrimaryColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
-                            if (audioOption.isSelected) {
-                                Icon(
-                                    imageVector = Icons.Regular.Checkmark,
-                                    contentDescription = "",
-                                    tint = Colors.PrimaryColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    },
-                    onClick = {
-                        onAudioSelected(audioOption.audioGuid)
+                        },
+                        onClick = {
+                            onAudioSelected(audioOption.audioGuid)
+//                            currentAudioStream = audioStreams.first { it.guid == audioOption.audioGuid }
+                            isFlyoutVisible = false
+                        },
+//                        modifier = Modifier
+//                            .padding(vertical = 4.dp)
+//                            .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent, RoundedCornerShape(4.dp))
+//                        colors = mediaDetailsSelectedListItemColors()
+                    )
+                }
+            },
+            content = {
+                // 根据isSelected状态计算目标旋转角度
+                val targetRotation = if (isHovered) -180f else 0f
+                val animatedRotation by animateFloatAsState(targetValue = targetRotation)
+                LaunchedEffect(isHovered) {
+                    if (isHovered) {
+                        isFlyoutVisible = true
+                    } else {
+                        delay(300)
+                        isFlyoutVisible = false
                     }
-                )
-            }
-        },
-        content = {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isHovered by interactionSource.collectIsHoveredAsState()
-            // 根据isSelected状态计算目标旋转角度
-            val targetRotation = if (isHovered) -180f else 0f
-            val animatedRotation by animateFloatAsState(targetValue = targetRotation)
-            LaunchedEffect(isHovered) {
-
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(text = "", color = Color.White, fontSize = 12.sp)
-                Icon(
-                    imageVector = ArrowUp,
-                    contentDescription = "下拉框箭头",
-                    tint = FluentTheme.colors.text.text.secondary,
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier
-                        .size(14.dp)
-                        .rotate(animatedRotation)
-                )
-            }
-        }
-    )
+                        .hoverable(interactionSource)
+                ) {
+                    Text(text = selectedLanguage, color = Color.White, fontSize = 12.sp)
+                    Icon(
+                        imageVector = ArrowUp,
+                        contentDescription = "下拉框箭头",
+                        tint = FluentTheme.colors.text.text.secondary,
+                        modifier = Modifier
+                            .size(14.dp)
+                            .rotate(animatedRotation)
+                    )
+                }
+            },
+//            placement = FlyoutPlacement.BottomAlignedStart,
+            placement = FlyoutPlacement.Auto,
+        )
+    }
 }
 
 @Composable
