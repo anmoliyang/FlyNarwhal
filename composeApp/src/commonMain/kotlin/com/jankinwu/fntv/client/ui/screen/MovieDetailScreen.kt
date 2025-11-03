@@ -1031,7 +1031,7 @@ fun MediaQualityTag(qualityTag: String) {
                 text = qualityTag.uppercase(),
                 style = LocalTypography.current.body,
                 color = if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
 //                lineHeight = 5.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -1059,8 +1059,7 @@ fun MediaQualityTag(qualityTag: String) {
                     RoundedCornerShape(4.dp)
                 )
                 .padding(
-                    horizontal = 4.dp,
-                    vertical = 1.dp
+                    start = 4.dp, end = 4.dp, bottom = 2.dp
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -1068,7 +1067,7 @@ fun MediaQualityTag(qualityTag: String) {
                 text = qualityTag,
                 style = LocalTypography.current.body,
                 color = FluentTheme.colors.stroke.control.default.copy(alpha = 0.5f),
-                fontSize = 12.sp,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
         }
