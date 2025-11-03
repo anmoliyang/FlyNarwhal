@@ -1,11 +1,13 @@
 package com.jankinwu.fntv.client.ui.screen
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +26,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
@@ -46,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
@@ -77,6 +76,7 @@ import com.jankinwu.fntv.client.data.model.response.ItemResponse
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
+import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.model.response.StreamListResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
@@ -101,11 +101,17 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.component.Icon
+import io.github.composefluent.component.MenuFlyoutContainer
+import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
+import io.github.composefluent.icons.Icons
+import io.github.composefluent.icons.regular.Check
+import io.github.composefluent.icons.regular.Checkmark
+import io.github.composefluent.icons.regular.MoreHorizontal
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.collections.mutableMapOf
 
 @Composable
 fun MovieDetailScreen(
@@ -130,11 +136,20 @@ fun MovieDetailScreen(
     var personList: List<PersonList> by remember { mutableStateOf(emptyList()) }
     var scrollRowItemList by remember { mutableStateOf(emptyList<ScrollRowItemData>()) }
     var playInfoResponse: PlayInfoResponse? by remember { mutableStateOf(null) }
+    val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
+    val iso6392State by tagViewModel.iso6392State.collectAsState()
+    val iso3166State by tagViewModel.iso3166State.collectAsState()
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
         personListViewModel.loadData(guid)
         playInfoViewModel.loadData(guid)
+        if (iso6392State !is UiState.Success) {
+            tagViewModel.loadIso6392Tags()
+        }
+        if (iso3166State !is UiState.Success) {
+            tagViewModel.loadIso3166Tags()
+        }
     }
     LaunchedEffect(itemUiState) {
         when (itemUiState) {
@@ -315,7 +330,15 @@ fun MovieDetailScreen(
                     val currentStream = streamData
                     val playInfoResponse = playInfoResponse
                     if (currentItem != null && currentStream != null && playInfoResponse != null) {
-                        MediaInfo(currentItem, currentStream, guid, toastManager, playInfoResponse)
+                        MediaInfo(
+                            currentItem,
+                            currentStream,
+                            guid,
+                            toastManager,
+                            playInfoResponse,
+                            iso6392State,
+                            iso3166State
+                        )
                     }
                 }
                 item {
@@ -356,9 +379,11 @@ fun MediaInfo(
     streamData: StreamListResponse,
     guid: String,
     toastManager: ToastManager,
-    playInfoResponse: PlayInfoResponse
+    playInfoResponse: PlayInfoResponse,
+    iso6392State: UiState<List<QueryTagResponse>>,
+    iso3166State: UiState<List<QueryTagResponse>>
 ) {
-    var mediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
+    var currentMediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
     var selectedVideoStreamIndex by remember { mutableIntStateOf(0) }
     val mediaGuidAudioGuidMap = remember { mutableMapOf<String, String>() }
     var currentAudioStreamGuid: String? by remember { mutableStateOf("") }
@@ -368,29 +393,31 @@ fun MediaInfo(
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
     val formatReminingDuration = formatSeconds(reminingDuration)
     val formatTotalDuration = formatSeconds(totalDuration)
-    LaunchedEffect(mediaGuid) {
+    LaunchedEffect(currentMediaGuid) {
         streamData.videoStreams.forEach {
-            if (it.mediaGuid == mediaGuid) {
+            if (it.mediaGuid == currentMediaGuid) {
                 selectedVideoStreamIndex = streamData.videoStreams.indexOf(it)
                 totalDuration = streamData.videoStreams[selectedVideoStreamIndex].duration
             }
         }
         currentAudioStreamList = streamData.audioStreams
             .filter {
-                it.mediaGuid == mediaGuid
+                it.mediaGuid == currentMediaGuid
             }.sortedByDescending { it.index }
-        currentAudioStreamGuid = mediaGuidAudioGuidMap[mediaGuid]
+        currentAudioStreamGuid = mediaGuidAudioGuidMap[currentMediaGuid]
     }
     LaunchedEffect(selectedVideoStreamIndex) {
-        mediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
+        currentMediaGuid = streamData.videoStreams[selectedVideoStreamIndex].mediaGuid
     }
     LaunchedEffect(playInfoResponse, streamData) {
         // 如果和 playInfo 的 audioGuid 相等，则使用，否则使用默认
         streamData.audioStreams.forEach { audioStream ->
             if (audioStream.guid == playInfoResponse.audioGuid) {
                 mediaGuidAudioGuidMap[audioStream.mediaGuid] = audioStream.guid
+                currentAudioStreamGuid = audioStream.guid
             } else if (audioStream.isDefault == 1) {
                 mediaGuidAudioGuidMap[audioStream.mediaGuid] = audioStream.guid
+                currentAudioStreamGuid = audioStream.guid
             }
         }
     }
@@ -422,14 +449,16 @@ fun MediaInfo(
             formatTotalDuration,
             guid,
             toastManager,
-            mediaGuid,
+            currentMediaGuid,
             selectedVideoStreamIndex,
             streamData,
             currentAudioStream,
             currentAudioStreamList,
+            iso6392State,
+            iso3166State,
             onAudioSelected = {
                 currentAudioStreamGuid = it
-                mediaGuidAudioGuidMap[mediaGuid] = it
+                mediaGuidAudioGuidMap[currentMediaGuid] = it
             },
         )
 
@@ -525,10 +554,10 @@ fun MiddleControls(
     streamData: StreamListResponse,
     currentAudioStream: AudioStream?,
     currentAudioStreamList: List<AudioStream>,
+    iso6392State: UiState<List<QueryTagResponse>>,
+    iso3166State: UiState<List<QueryTagResponse>>,
     onAudioSelected: (audioGuid: String) -> Unit
 ) {
-    val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
-    val iso3166State = tagViewModel.iso3166State.collectAsState().value
     val player = LocalMediaPlayer.current
     val playMedia = rememberPlayMediaFunction(
         guid = guid,
@@ -572,7 +601,6 @@ fun MiddleControls(
     LaunchedEffect(watchedUiState) {
         when (val state = watchedUiState) {
             is UiState.Success -> {
-//                isWatched = !isWatched
                 streamListViewModel.loadData(guid)
                 itemViewModel.loadData(guid)
                 toastManager.showToast(state.data.message, state.data.success)
@@ -655,7 +683,7 @@ fun MiddleControls(
 
             // 更多按钮
             CircleIconButton(
-                icon = Icons.Default.MoreHoriz,
+                icon = Icons.Regular.MoreHorizontal,
                 description = "更多",
                 onClick = {},
                 iconColor = FluentTheme.colors.text.text.primary
@@ -723,9 +751,6 @@ fun MiddleControls(
                     }
                     Separator()
                 }
-                LaunchedEffect(Unit) {
-                    tagViewModel.loadIso3166Tags()
-                }
                 if (iso3166State is UiState.Success) {
                     val iso3166Map = iso3166State.data.associateBy { it.key }
                     val countriesText = itemData.productionCountries?.joinToString(" ") { locate ->
@@ -759,6 +784,12 @@ fun MiddleControls(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 InfoIconText("中文字幕")
+                AudioSelector(
+                    currentAudioStreamList,
+                    currentAudioStream,
+                    onAudioSelected,
+                    iso6392State
+                )
 
                 MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].resolutionType)
                 MediaQualityTag(streamData.videoStreams[selectedVideoStreamIndex].colorRangeType)
@@ -766,6 +797,111 @@ fun MiddleControls(
             }
         }
     }
+}
+
+data class AudioOptionItem(
+    val audioGuid: String,
+    val language: String,
+    val codecName: String,
+    val channelLayout: String,
+    val isSelected: Boolean = false
+)
+
+@Composable
+fun AudioSelector(
+    audioStreams: List<AudioStream>,
+    currentAudioStream: AudioStream?,
+    onAudioSelected: (String) -> Unit,
+    iso6392State: UiState<List<QueryTagResponse>>
+) {
+    val audioOptions = mutableListOf<AudioOptionItem>()
+    if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
+        val iso6392Map = iso6392State.data.associateBy { it.key }
+        LaunchedEffect(audioStreams) {
+            audioStreams.forEach { audioStream ->
+                audioOptions.add(
+                    AudioOptionItem(
+                        audioGuid = audioStream.guid,
+                        language = iso6392Map[audioStream.language]?.value ?: audioStream.language,
+                        codecName = audioStream.codecName,
+                        channelLayout = audioStream.channelLayout,
+                        isSelected = audioStream.guid == currentAudioStream?.guid
+                    )
+                )
+            }
+        }
+    }
+
+    MenuFlyoutContainer(
+        flyout = {
+            audioOptions.forEach { audioOption ->
+                MenuFlyoutItem(
+                    text = {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = audioOption.language,
+                                    color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier
+                                        .width(120.dp)
+                                )
+                                Text(
+                                    text = "${audioOption.codecName} ${audioOption.channelLayout}",
+                                    color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.secondary,
+                                    fontWeight = FontWeight.Normal,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .width(120.dp)
+                                )
+                            }
+                            if (audioOption.isSelected) {
+                                Icon(
+                                    imageVector = Icons.Regular.Checkmark,
+                                    contentDescription = "",
+                                    tint = Colors.PrimaryColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    },
+                    onClick = {
+                        onAudioSelected(audioOption.audioGuid)
+                    }
+                )
+            }
+        },
+        content = {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isHovered by interactionSource.collectIsHoveredAsState()
+            // 根据isSelected状态计算目标旋转角度
+            val targetRotation = if (isHovered) -180f else 0f
+            val animatedRotation by animateFloatAsState(targetValue = targetRotation)
+            LaunchedEffect(isHovered) {
+
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(text = "", color = Color.White, fontSize = 12.sp)
+                Icon(
+                    imageVector = ArrowUp,
+                    contentDescription = "下拉框箭头",
+                    tint = FluentTheme.colors.text.text.secondary,
+                    modifier = Modifier
+                        .size(14.dp)
+                        .rotate(animatedRotation)
+                )
+            }
+        }
+    )
 }
 
 @Composable
@@ -792,7 +928,7 @@ fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
 }
 
 /**
- * 右上角带图标的文本，如 "中文字幕"
+ * 音频字幕下拉选择器
  */
 @Composable
 fun InfoIconText(text: String) {
@@ -836,7 +972,12 @@ fun MediaQualityTag(qualityTag: String) {
                 fontWeight = FontWeight.ExtraBold
             )
         }
-    } else if (qualityTag.endsWith("p") || qualityTag in listOf("HLG", "Stereo", "SDR") || qualityTag.startsWith("HDR")) {
+    } else if (qualityTag.endsWith("p") || qualityTag in listOf(
+            "HLG",
+            "Stereo",
+            "SDR"
+        ) || qualityTag.startsWith("HDR")
+    ) {
         var qualityTag = when (qualityTag) {
             "Stereo" -> "立体声"
             "HDR10" -> "HDR"
