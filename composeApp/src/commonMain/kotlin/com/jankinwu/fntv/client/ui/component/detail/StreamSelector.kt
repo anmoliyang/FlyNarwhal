@@ -40,8 +40,8 @@ import kotlinx.coroutines.delay
 @Composable
 fun StreamSelector(
     audioOptions: List<StreamOptionItem>,
-    selectedLanguage: String,
-    onAudioSelected: (String) -> Unit
+    selectedItemLabel: String,
+    onSelected: (String) -> Unit
 ) {
     if (audioOptions.isNotEmpty() && audioOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
@@ -97,7 +97,7 @@ fun StreamSelector(
                             }
                         },
                         onClick = {
-                            onAudioSelected(audioOption.audioGuid)
+                            onSelected(audioOption.audioGuid)
 //                            currentAudioStream = audioStreams.first { it.guid == audioOption.audioGuid }
                             isFlyoutVisible = false
                         },
@@ -113,7 +113,7 @@ fun StreamSelector(
             content = {
                 StreamSelectorLabel(
                     modifier = Modifier.hoverable(interactionSource),
-                    selectedLabel = selectedLanguage,
+                    selectedLabel = selectedItemLabel,
                     isHovered = isHovered,
                     onFlyoutVisibilityChange = { isVisible -> isFlyoutVisible = isVisible }
                 )
@@ -123,7 +123,7 @@ fun StreamSelector(
         )
     } else {
         Text(
-            text = selectedLanguage,
+            text = selectedItemLabel,
             color = FluentTheme.colors.text.text.secondary,
             fontSize = 14.sp
         )

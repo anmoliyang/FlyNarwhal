@@ -108,6 +108,7 @@ import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -593,7 +594,7 @@ fun MiddleControls(
 
         // 清除状态
         if (favoriteUiState is UiState.Success || favoriteUiState is UiState.Error) {
-            kotlinx.coroutines.delay(2000) // 2秒后清除状态
+            delay(2000) // 2秒后清除状态
             favoriteViewModel.clearError()
         }
     }
@@ -617,7 +618,7 @@ fun MiddleControls(
 
         // 清除状态
         if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
-            kotlinx.coroutines.delay(2000) // 2秒后清除状态
+            delay(2000) // 2秒后清除状态
             watchedViewModel.clearError()
         }
     }
@@ -840,9 +841,14 @@ fun AudioSelector(
     val selectorOptions by remember(audioStreams, iso6392Map, currentAudioStream) {
         derivedStateOf {
             audioStreams.map { audioStream ->
+                val language: String = if (currentAudioStream?.language in listOf("", "und", "zxx", "qaa-qtz")) {
+                    "未知音频"
+                } else {
+                    (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
+                }
                 StreamOptionItem(
                     audioGuid = audioStream.guid,
-                    title = iso6392Map[audioStream.language]?.value ?: audioStream.language,
+                    title = language,
                     subtitle1 = audioStream.codecName,
                     subtitle3 = audioStream.title,
                     subtitle2 = audioStream.channelLayout,
@@ -851,8 +857,11 @@ fun AudioSelector(
             }
         }
     }
-    val selectedLanguage =
+    val selectedLanguage: String = if (currentAudioStream?.language in listOf("", "und", "zxx", "qaa-qtz")) {
+        "未知音频"
+    } else {
         (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
+    }
     StreamSelector(selectorOptions, selectedLanguage, onAudioSelected)
 }
 
