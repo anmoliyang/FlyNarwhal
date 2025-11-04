@@ -319,28 +319,28 @@ fun HomePageScreen(navigator: ComponentNavigator) {
 
                                     else -> emptyList()
                                 }
-
-                                MediaLibGallery(
-                                    title = mediaLib.title,
-                                    guid = mediaLib.guid,
-                                    movies = mediaDataList,
-                                    onFavoriteToggle = { guid, currentFavoriteState, resultCallback ->
-                                        // 保存回调函数
-                                        pendingCallbacks =
-                                            pendingCallbacks + (guid to resultCallback)
-                                        // 调用 ViewModel 方法
-                                        favoriteViewModel.toggleFavorite(guid, currentFavoriteState)
-                                    },
-                                    onWatchedToggle = { guid, currentWatchedState, resultCallback ->
-                                        // 保存回调函数
-                                        pendingCallbacks =
-                                            pendingCallbacks + (guid to resultCallback)
-                                        // 调用 ViewModel 方法
-                                        watchedViewModel.toggleWatched(guid, currentWatchedState)
-                                    },
-                                    navigator = navigator
-                                )
-
+                                if (mediaDataList.isNotEmpty()) {
+                                    MediaLibGallery(
+                                        title = mediaLib.title,
+                                        guid = mediaLib.guid,
+                                        movies = mediaDataList,
+                                        onFavoriteToggle = { guid, currentFavoriteState, resultCallback ->
+                                            // 保存回调函数
+                                            pendingCallbacks =
+                                                pendingCallbacks + (guid to resultCallback)
+                                            // 调用 ViewModel 方法
+                                            favoriteViewModel.toggleFavorite(guid, currentFavoriteState)
+                                        },
+                                        onWatchedToggle = { guid, currentWatchedState, resultCallback ->
+                                            // 保存回调函数
+                                            pendingCallbacks =
+                                                pendingCallbacks + (guid to resultCallback)
+                                            // 调用 ViewModel 方法
+                                            watchedViewModel.toggleWatched(guid, currentWatchedState)
+                                        },
+                                        navigator = navigator
+                                    )
+                                }
                             }
                         }
 
