@@ -1,14 +1,11 @@
 package com.jankinwu.fntv.client.ui.screen
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -92,6 +88,8 @@ import com.jankinwu.fntv.client.ui.component.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.ToastHost
 import com.jankinwu.fntv.client.ui.component.ToastManager
+import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
+import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.rememberToastManager
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
@@ -104,16 +102,12 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
-import io.github.composefluent.component.MenuFlyoutContainer
-import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
-import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -744,6 +738,11 @@ fun MiddleControls(
                 }
                 val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
                 val genresUiState = genresViewModel.uiState.collectAsState().value
+                LaunchedEffect(genresUiState) {
+                    if (genresUiState !is UiState.Success) {
+                        genresViewModel.loadGenres()
+                    }
+                }
                 if (genresUiState is UiState.Success) {
                     val genresMap = genresUiState.data.associateBy { it.id }
                     val genresText = itemData.genres?.joinToString(" ") { genreId ->
@@ -825,14 +824,6 @@ fun MiddleControls(
     }
 }
 
-data class AudioOptionItem(
-    val audioGuid: String,
-    val language: String,
-    val codecName: String,
-    val channelLayout: String,
-    val isSelected: Boolean = false
-)
-
 @Composable
 fun AudioSelector(
     audioStreams: List<AudioStream>,
@@ -840,23 +831,21 @@ fun AudioSelector(
     onAudioSelected: (String) -> Unit,
     iso6392State: UiState<List<QueryTagResponse>>
 ) {
-    println("currentAudioStream: $currentAudioStream")
     var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
-//    var currentAudioStream by remember(currentAudioStream) {
-//        mutableStateOf(currentAudioStream)
-//    }
+
     if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
         iso6392Map = iso6392State.data.associateBy { it.key }
     }
 
-    val audioOptions by remember(audioStreams, iso6392Map, currentAudioStream) {
+    val selectorOptions by remember(audioStreams, iso6392Map, currentAudioStream) {
         derivedStateOf {
             audioStreams.map { audioStream ->
-                AudioOptionItem(
+                StreamOptionItem(
                     audioGuid = audioStream.guid,
-                    language = iso6392Map[audioStream.language]?.value ?: audioStream.language,
-                    codecName = audioStream.codecName,
-                    channelLayout = audioStream.channelLayout,
+                    title = iso6392Map[audioStream.language]?.value ?: audioStream.language,
+                    subtitle1 = audioStream.codecName,
+                    subtitle3 = audioStream.title,
+                    subtitle2 = audioStream.channelLayout,
                     isSelected = audioStream.guid == currentAudioStream?.guid
                 )
             }
@@ -864,104 +853,7 @@ fun AudioSelector(
     }
     val selectedLanguage =
         (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
-    if (audioOptions.isNotEmpty() && audioOptions.size > 1) {
-        val interactionSource = remember { MutableInteractionSource() }
-        val isHovered by interactionSource.collectIsHoveredAsState()
-        MenuFlyoutContainer(
-            flyout = {
-                audioOptions.forEach { audioOption ->
-                    MenuFlyoutItem(
-                        text = {
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-//                                    .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent)
-                                    .padding(vertical = 8.dp)
-                                    .hoverable(interactionSource)
-                                    .pointerHoverIcon(PointerIcon.Hand)
-                            ) {
-                                Column(
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Text(
-                                        text = audioOption.language,
-                                        color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 15.sp,
-                                        modifier = Modifier
-                                            .width(120.dp)
-                                    )
-                                    Text(
-                                        text = "${audioOption.codecName} ${audioOption.channelLayout}",
-                                        color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.secondary,
-                                        fontWeight = FontWeight.Normal,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier
-                                            .width(120.dp)
-                                    )
-                                }
-                                if (audioOption.isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Regular.Checkmark,
-                                        contentDescription = "",
-                                        tint = Colors.PrimaryColor,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        },
-                        onClick = {
-                            onAudioSelected(audioOption.audioGuid)
-//                            currentAudioStream = audioStreams.first { it.guid == audioOption.audioGuid }
-                            isFlyoutVisible = false
-                        },
-//                        modifier = Modifier
-//                            .padding(vertical = 4.dp)
-//                            .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent, RoundedCornerShape(4.dp))
-//                        colors = mediaDetailsSelectedListItemColors()
-                    )
-                }
-            },
-            content = {
-                // 根据isSelected状态计算目标旋转角度
-                val targetRotation = if (isHovered) -180f else 0f
-                val animatedRotation by animateFloatAsState(targetValue = targetRotation)
-                LaunchedEffect(isHovered) {
-                    if (isHovered) {
-                        isFlyoutVisible = true
-                    } else {
-                        delay(300)
-                        isFlyoutVisible = false
-                    }
-                }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .hoverable(interactionSource)
-                ) {
-                    Text(text = selectedLanguage, color = FluentTheme.colors.text.text.secondary, fontSize = 14.sp)
-                    Icon(
-                        imageVector = ArrowUp,
-                        contentDescription = "下拉框箭头",
-                        tint = FluentTheme.colors.text.text.tertiary,
-                        modifier = Modifier
-                            .size(16.dp)
-                            .rotate(animatedRotation)
-                    )
-                }
-            },
-//            placement = FlyoutPlacement.BottomAlignedStart,
-            placement = FlyoutPlacement.Auto,
-        )
-    } else {
-        Text(
-            text = selectedLanguage,
-            color = FluentTheme.colors.text.text.secondary,
-            fontSize = 14.sp
-        )
-    }
+    StreamSelector(selectorOptions, selectedLanguage, onAudioSelected)
 }
 
 @Composable
