@@ -66,7 +66,7 @@ fun StreamSelector(
                                     modifier = Modifier.weight(5f)
                                 ) {
                                     Text(
-                                        text = audioOption.title,
+                                        text = audioOption.title + if (audioOption.isDefault) " - 默认" else "",
                                         color = if (audioOption.isSelected) Colors.PrimaryColor else FluentTheme.colors.text.text.primary,
                                         fontWeight = FontWeight.Normal,
                                         fontSize = 15.sp,
@@ -179,5 +179,6 @@ data class StreamOptionItem(
     val subtitle1: String,
     val subtitle2: String,
     val subtitle3: String,
+    val isDefault: Boolean = false,
     val isSelected: Boolean = false
 )

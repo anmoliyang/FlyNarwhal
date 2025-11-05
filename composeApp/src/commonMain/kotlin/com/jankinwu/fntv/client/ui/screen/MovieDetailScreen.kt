@@ -841,10 +841,10 @@ fun AudioSelector(
     val selectorOptions by remember(audioStreams, iso6392Map, currentAudioStream) {
         derivedStateOf {
             audioStreams.map { audioStream ->
-                val language: String = if (currentAudioStream?.language in listOf("", "und", "zxx", "qaa-qtz")) {
-                    "未知音频"
+                val language: String = if (audioStream.language in listOf("", "und", "zxx", "qaa-qtz")) {
+                    "未知"
                 } else {
-                    (iso6392Map[currentAudioStream?.language]?.value ?: currentAudioStream?.language) + "音频"
+                    iso6392Map[audioStream.language]?.value ?: audioStream.language
                 }
                 StreamOptionItem(
                     audioGuid = audioStream.guid,
@@ -852,6 +852,7 @@ fun AudioSelector(
                     subtitle1 = audioStream.codecName,
                     subtitle3 = audioStream.title,
                     subtitle2 = audioStream.channelLayout,
+                    isDefault = audioStream.isDefault == 1,
                     isSelected = audioStream.guid == currentAudioStream?.guid
                 )
             }
