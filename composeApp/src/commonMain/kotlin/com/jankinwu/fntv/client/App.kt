@@ -97,6 +97,7 @@ val LocalRefreshState = staticCompositionLocalOf<RefreshState> {
 // 刷新状态数据类
 data class RefreshState(
     val refreshKey: String = "",
+    // 全局刷新回调
     val onRefresh: () -> Unit = {}
 )
 
