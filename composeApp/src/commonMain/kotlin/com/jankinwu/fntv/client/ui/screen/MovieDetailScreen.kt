@@ -997,7 +997,7 @@ fun SubtitleSelector(
                     ?: currentSubtitleStream.language) + "字幕"
             }
         }
-    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true)
+    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected)
 }
 
 @Composable

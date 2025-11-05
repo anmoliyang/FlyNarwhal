@@ -41,10 +41,8 @@ import kotlinx.coroutines.delay
 fun StreamSelector(
     streamOptions: List<StreamOptionItem>,
     selectedItemLabel: String,
-    onSelected: (String) -> Unit,
-    isSubtitle: Boolean = false
+    onSelected: (String) -> Unit
 ) {
-    println("selectedItemLabel: $selectedItemLabel")
     if (streamOptions.isNotEmpty() && streamOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
         val isHovered by interactionSource.collectIsHoveredAsState()
