@@ -7,7 +7,7 @@ object AccountDataCache {
 
     var authorization: String = ""
 
-    var cookieMap: MutableMap<String, String> = mutableMapOf()
+    private var cookieMap: MutableMap<String, String> = mutableMapOf()
     
     private var _cookieState = mutableStateOf("")
     val cookieState: String by _cookieState
@@ -42,8 +42,7 @@ object AccountDataCache {
         return cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
     
-    fun updateCookie(pair: Pair<String, String>) {
-        println("update cookie map：$pair")
+    fun insertCookie(pair: Pair<String, String>) {
         cookieMap[pair.first] = pair.second
         _cookieState.value = getCookie()
     }
@@ -51,5 +50,16 @@ object AccountDataCache {
     fun clearCookie() {
         cookieMap.clear()
         _cookieState.value = ""
+    }
+
+    fun refreshCookie() {
+        _cookieState.value = getCookie()
+    }
+
+    fun parseCookie(cookie: String) {
+        cookieMap = cookie.split("; ").associate {
+            val (key, value) = it.split("=", limit = 2)
+            key to value
+        } as MutableMap<String, String>
     }
 }

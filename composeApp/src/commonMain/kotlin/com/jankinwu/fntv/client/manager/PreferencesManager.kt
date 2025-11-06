@@ -58,10 +58,8 @@ class PreferencesManager private constructor() {
         AccountDataCache.isLoggedIn = settings.getBoolean("isLoggedIn", false)
         val cookie = settings.getString("cookie", "")
         if (cookie.isNotBlank()) {
-            AccountDataCache.cookieMap = cookie.split("; ").associate {
-                val (key, value) = it.split("=", limit = 2)
-                key to value
-            } as MutableMap<String, String>
+            AccountDataCache.parseCookie(cookie)
+            AccountDataCache.refreshCookie()
         }
         AccountDataCache.rememberMe = settings.getBoolean("rememberMe", false)
     }
@@ -74,16 +72,14 @@ class PreferencesManager private constructor() {
         settings.putString("host", AccountDataCache.host)
         settings.putInt("port", AccountDataCache.port)
         settings.putBoolean("isLoggedIn", AccountDataCache.isLoggedIn)
-        val cookie =
-            AccountDataCache.cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        val cookie = AccountDataCache.cookieState
         settings.putString("cookie", cookie)
         settings.putBoolean("rememberMe", AccountDataCache.rememberMe)
     }
 
     fun saveToken(token: String) {
         settings.putString("token", token)
-        val cookie =
-            AccountDataCache.cookieMap.entries.joinToString("; ") { "${it.key}=${it.value}" }
+        val cookie = AccountDataCache.cookieState
         settings.putString("cookie", cookie)
     }
 

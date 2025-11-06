@@ -146,8 +146,8 @@ fun LoginScreen(navigator: ComponentNavigator) {
                 // 保存token到SystemAccountData
                 AccountDataCache.authorization = state.data.token
                 AccountDataCache.isLoggedIn = true
-                AccountDataCache.updateCookie("Trim-MC-token" to state.data.token)
-                println("登录成功，cookieMap: ${AccountDataCache.cookieMap}")
+                AccountDataCache.insertCookie("Trim-MC-token" to state.data.token)
+                println("登录成功，cookie: ${AccountDataCache.cookieState}")
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveToken(state.data.token)
                 loginViewModel.clearError()
