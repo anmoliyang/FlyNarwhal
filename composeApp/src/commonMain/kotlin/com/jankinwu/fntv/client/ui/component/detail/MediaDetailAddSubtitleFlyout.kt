@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -36,7 +37,9 @@ import com.jankinwu.fntv.client.icons.Computer
 import com.jankinwu.fntv.client.icons.Nas
 import com.jankinwu.fntv.client.icons.Search
 import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
@@ -50,17 +53,24 @@ import java.io.File
 @Preview
 @Composable
 fun MediaDetailAddSubtitleFlyout(
-    guid: String,
-    modifier: Modifier = Modifier
+    mediaGuid: String,
+    modifier: Modifier = Modifier,
+    guid: String
 ) {
     val frameWindowScope = LocalFrameWindowScope.current
     val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
+    val subtitleUploadState by subtitleUploadViewModel.uiState.collectAsState()
+    val streamListViewModel: StreamListViewModel = koinViewModel()
     
     fun handleFileSelection(file: File?) {
         file?.let { selectedFile ->
             // 将文件转换为ByteArray并上传
             val byteArray = selectedFile.readBytes()
-            subtitleUploadViewModel.uploadSubtitle(guid, byteArray)
+            subtitleUploadViewModel.uploadSubtitle(mediaGuid, byteArray, selectedFile.name)
+            if (subtitleUploadState is UiState.Success) {
+                streamListViewModel.loadData(guid)
+                subtitleUploadViewModel.clearError()
+            }
         }
     }
     

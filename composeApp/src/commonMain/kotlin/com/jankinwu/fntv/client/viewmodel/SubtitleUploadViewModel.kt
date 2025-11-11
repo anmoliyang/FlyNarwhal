@@ -16,10 +16,10 @@ class SubtitleUploadViewModel : BaseViewModel() {
     private val _uiState = MutableStateFlow<UiState<SubtitleUploadResponse>>(UiState.Initial)
     val uiState: StateFlow<UiState<SubtitleUploadResponse>> = _uiState.asStateFlow()
 
-    fun uploadSubtitle(guid: String, file: ByteArray) {
+    fun uploadSubtitle(guid: String, file: ByteArray, name: String) {
         viewModelScope.launch {
             executeWithLoading(_uiState) {
-                fnOfficialApi.uploadSubtitle(guid, file)
+                fnOfficialApi.uploadSubtitle(guid, file, name)
             }
         }
     }

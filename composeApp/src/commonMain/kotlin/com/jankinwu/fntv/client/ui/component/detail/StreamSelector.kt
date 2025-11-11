@@ -43,7 +43,9 @@ fun StreamSelector(
     streamOptions: List<StreamOptionItem>,
     selectedItemLabel: String,
     onSelected: (String) -> Unit,
-    isSubtitle: Boolean = false
+    isSubtitle: Boolean = false,
+    mediaGuid: String = "",
+    guid: String = "",
 ) {
     if (streamOptions.isNotEmpty() && streamOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
@@ -68,8 +70,11 @@ fun StreamSelector(
                                     modifier = Modifier
                                         .width(120.dp)
                                 )
+                                // 添加 "字幕" 下拉框
                                 MediaDetailAddSubtitleFlyout(
+                                    mediaGuid,
                                     modifier = Modifier.hoverable(interactionSource),
+                                    guid
                                 )
                             }
                         },

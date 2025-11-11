@@ -947,7 +947,11 @@ fun AudioSelector(
             (iso6392Map[currentAudioStream.language]?.value
                 ?: currentAudioStream.language) + "音频"
         }
-    StreamSelector(selectorOptions, selectedLanguage, onAudioSelected)
+    StreamSelector(
+        selectorOptions,
+        selectedLanguage,
+        onAudioSelected,
+    )
 }
 
 @Composable
@@ -997,7 +1001,9 @@ fun SubtitleSelector(
                     ?: currentSubtitleStream.language) + "字幕"
             }
         }
-    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true)
+    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
+        currentSubtitleStream?.mediaGuid ?: "", currentSubtitleStream?.guid ?: ""
+    )
 }
 
 @Composable
