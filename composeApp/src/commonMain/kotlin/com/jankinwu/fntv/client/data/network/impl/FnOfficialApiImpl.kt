@@ -34,6 +34,8 @@ import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -41,7 +43,9 @@ import io.ktor.client.request.post
 import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
+import io.ktor.http.headers
 import korlibs.crypto.MD5
 import kotlin.random.Random
 import kotlin.time.Clock
@@ -173,11 +177,10 @@ class FnOfficialApiImpl() : FnOfficialApi {
 
     override suspend fun uploadSubtitle(
         guid: String,
-        file: ByteArray
+        file: ByteArray,
+        fileName: String
     ): SubtitleUploadResponse {
-        val pair = "file" to file
-        val formDataParam = listOf<Pair<String, Any?>>(pair)
-        return post("/v/api/v1/subtitle/upload/$guid", isFormData = true, formData = formDataParam)
+        return postMultipartFile("/v/api/v1/subtitle/upload/$guid", "file", file, fileName)
     }
 
     private suspend inline fun <reified T> get(
@@ -191,7 +194,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
             val authx = genAuthx(url, parameters)
             println("whole url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters")
-//            println("authx: $authx")
+
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
                 parameters?.forEach { (key, value) ->
@@ -239,19 +242,10 @@ class FnOfficialApiImpl() : FnOfficialApi {
             println("whole url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
 
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                if (isFormData) {
-                    header("Authx", authx)
-                    formData.forEach { (key, value) ->
-                        if (value != null) {
-                            parameter(key, value)
-                        }
-                    }
-                } else {
-                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
-                    header("Authx", authx)
-                    if (body != null) {
-                        setBody(body)
-                    }
+                header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                header("Authx", authx)
+                if (body != null) {
+                    setBody(body)
                 }
                 block?.invoke(this)
             }
@@ -278,6 +272,54 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}/v")
                 println("302 response: ${response.bodyAsText()}")
             }
+            throw Exception("请求失败: ${e.message}", e)
+        }
+    }
+
+    private suspend inline fun <reified T> postMultipartFile(
+        url: String,
+        fileParamName: String = "file",
+        file: ByteArray,
+        fileName: String,
+        additionalParams: Map<String, String> = emptyMap()
+    ): T {
+        return try {
+            if (AccountDataCache.getFnOfficialBaseUrl().isBlank()) {
+                throw IllegalArgumentException("飞牛官方URL未配置")
+            }
+
+            val authx = genAuthx(url)
+
+            val response = fnOfficialClient.submitFormWithBinaryData(
+                url = "${AccountDataCache.getFnOfficialBaseUrl()}$url",
+                formData = formData {
+                    // 添加文件
+                    append(fileParamName, file, Headers.build {
+                        append(HttpHeaders.ContentType, "application/octet-stream")
+                        append(HttpHeaders.ContentDisposition, "filename=\"$fileName\"")
+                    })
+
+                    // 添加其他参数
+                    additionalParams.forEach { (key, value) ->
+                        append(key, value)
+                    }
+                }
+            ) {
+                headers {
+                    append("Authx", authx)
+                }
+            }
+
+            val responseString = response.bodyAsText()
+            println("POST multipart file response content: $responseString")
+
+            val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
+            if (responseBody.code != 0) {
+                throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
+            }
+
+            responseBody.data ?: throw Exception("返回数据为空")
+        } catch (e: Exception) {
             throw Exception("请求失败: ${e.message}", e)
         }
     }

@@ -84,16 +84,16 @@ import com.jankinwu.fntv.client.enums.MediaQualityTagEnums
 import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.HeartFilled
-import com.jankinwu.fntv.client.ui.component.CastScrollRow
-import com.jankinwu.fntv.client.ui.component.ComponentNavigator
-import com.jankinwu.fntv.client.ui.component.ImgLoadingError
-import com.jankinwu.fntv.client.ui.component.ImgLoadingProgressRing
-import com.jankinwu.fntv.client.ui.component.ToastHost
-import com.jankinwu.fntv.client.ui.component.ToastManager
+import com.jankinwu.fntv.client.ui.component.common.CastScrollRow
+import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
+import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.component.common.ToastHost
+import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
 import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.detail.noDisplayStream
-import com.jankinwu.fntv.client.ui.component.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
@@ -449,7 +449,7 @@ fun MediaInfo(
         }
     }
     
-    LaunchedEffect(currentMediaGuid, guid) {
+    LaunchedEffect(currentMediaGuid, guid, streamData) {
         streamData.videoStreams.forEach {
             if (it.mediaGuid == currentMediaGuid) {
                 selectedVideoStreamIndex = streamData.videoStreams.indexOf(it)
@@ -868,7 +868,8 @@ fun MiddleControls(
                     currentSubtitleStreamList,
                     currentSubtitleStream,
                     onSubtitleSelected,
-                    iso6392State
+                    iso6392State,
+                    guid
                 )
                 AudioSelector(
                     currentAudioStreamList,
@@ -947,7 +948,11 @@ fun AudioSelector(
             (iso6392Map[currentAudioStream.language]?.value
                 ?: currentAudioStream.language) + "音频"
         }
-    StreamSelector(selectorOptions, selectedLanguage, onAudioSelected)
+    StreamSelector(
+        selectorOptions,
+        selectedLanguage,
+        onAudioSelected,
+    )
 }
 
 @Composable
@@ -955,7 +960,8 @@ fun SubtitleSelector(
     currentSubtitleStreamList: List<SubtitleStream>,
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
-    iso6392State: UiState<List<QueryTagResponse>>
+    iso6392State: UiState<List<QueryTagResponse>>,
+    guid: String =  ""
 ) {
     var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
 
@@ -997,7 +1003,9 @@ fun SubtitleSelector(
                     ?: currentSubtitleStream.language) + "字幕"
             }
         }
-    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true)
+    StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
+        currentSubtitleStream?.mediaGuid ?: "", guid
+    )
 }
 
 @Composable

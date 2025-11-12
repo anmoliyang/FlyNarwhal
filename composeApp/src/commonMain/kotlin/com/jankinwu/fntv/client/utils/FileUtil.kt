@@ -13,7 +13,6 @@ fun chooseFile(
     return scope.selectFile(fileExtensions, description)
 }
 
-
 fun FrameWindowScope.selectFile(
     fileExtensions: Array<String> = arrayOf("*"),
     description: String = "选择文件"
