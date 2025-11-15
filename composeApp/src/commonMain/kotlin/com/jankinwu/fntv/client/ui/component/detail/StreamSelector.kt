@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,8 +41,8 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Delete
-import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.ui.FlyoutTitleItemColors
+import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
@@ -68,14 +69,16 @@ fun StreamSelector(
     isSubtitle: Boolean = false,
     mediaGuid: String = "",
     guid: String = "",
+    selectedIndex: Int = 0,
 ) {
-    val lazyListState = rememberScrollState()
+    val lazyListState = rememberScrollState(0)
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletedItemTitle by remember { mutableStateOf("") }
     var deletedItemGuid by remember { mutableStateOf("") }
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
     val streamListViewModel: StreamListViewModel = koinViewModel()
+    val density = LocalDensity.current
 
     LaunchedEffect(subtitleDeleteState) {
         // 当字幕上传成功后，刷新stream列表
@@ -88,7 +91,17 @@ fun StreamSelector(
     if (streamOptions.isNotEmpty() && streamOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
         val isHovered by interactionSource.collectIsHoveredAsState()
-        var flyoutHeight by remember(streamOptions) { mutableStateOf(if (streamOptions.size >= 5) 310.dp else 60.dp * streamOptions.size) }
+        var flyoutHeight by remember(streamOptions) {
+            mutableStateOf(
+                if (isSubtitle && streamOptions.size > 6) {
+                    317.dp
+                } else if (isSubtitle) {
+                    57.dp * (streamOptions.size - 1) + 32.dp
+                } else {
+                    57.dp * streamOptions.size
+                }
+            )
+        }
         MenuFlyoutContainer(
             flyout = {
                 // 检查是否有 "_no_display_" 选项
@@ -120,7 +133,7 @@ fun StreamSelector(
                         onClick = {},
                         modifier = Modifier
                             .width(240.dp)
-                            .padding(vertical = 4.dp)
+                            .padding(bottom = 4.dp, top = 6.dp)
                             .hoverable(interactionSource),
                         colors = FlyoutTitleItemColors()
                     )
@@ -137,6 +150,18 @@ fun StreamSelector(
                             .width(240.dp)
                             .verticalScroll(lazyListState)
                     ) {
+                        LaunchedEffect(Unit) {
+                            println("selectedIndex: $selectedIndex")
+                            delay(100)
+                            val itemHeightPx = with(density) { 57.dp.toPx() }
+                            val titleHeightPx = with(density) { 36.dp.toPx() }
+                            val targetPosition = if (isSubtitle) {
+                                (((selectedIndex - 1) * itemHeightPx) + titleHeightPx).toInt()
+                            } else {
+                                (selectedIndex * itemHeightPx).toInt()
+                            }
+                            lazyListState.scrollTo(targetPosition)
+                        }
                         // 如果有 "_no_display_" 选项，则先显示它
                         noDisplayItem?.let { streamOptionItem ->
                             MenuFlyoutItem(

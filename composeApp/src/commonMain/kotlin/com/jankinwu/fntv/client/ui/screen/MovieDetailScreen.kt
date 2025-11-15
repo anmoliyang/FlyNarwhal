@@ -473,7 +473,7 @@ fun MediaInfo(
                 it.mediaGuid == currentMediaGuid
             }
 //            .sortedByDescending { it.index }
-        currentSubtitleStreamList = currentSubtitleStreamList + noDisplayStream
+        currentSubtitleStreamList = listOf(noDisplayStream) + currentSubtitleStreamList
         currentSubtitleStreamGuid = mediaGuidSubTitleGuidMap[currentMediaGuid]
     }
     
@@ -961,10 +961,16 @@ fun AudioSelector(
                     ?: currentAudioStream.language) + "音频"
             }
         }
+    val selectedIndex by remember(selectorOptions, currentAudioStream) {
+        derivedStateOf {
+            currentAudioStreamList.indexOfFirst { it.guid == currentAudioStream?.guid }
+        }
+    }
     StreamSelector(
         selectorOptions,
         selectedLanguage,
         onAudioSelected,
+        selectedIndex = selectedIndex,
     )
 }
 
@@ -1041,8 +1047,13 @@ fun SubtitleSelector(
             "${languageName}字幕"
             }
         }
+    val selectedIndex by remember(currentSubtitleStream) {
+        derivedStateOf {
+            currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }
+        }
+    }
     StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
-        currentSubtitleStream?.mediaGuid ?: "", guid
+        currentSubtitleStream?.mediaGuid ?: "", guid, selectedIndex
     )
 }
 
