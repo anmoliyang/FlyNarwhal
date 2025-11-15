@@ -1,26 +1,38 @@
 package com.jankinwu.fntv.client.ui.component.detail
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,15 +40,26 @@ import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.ArrowUp
-import com.jankinwu.fntv.client.ui.subtitleItemColors
+import com.jankinwu.fntv.client.icons.Delete
+import com.jankinwu.fntv.client.ui.FlyoutTitleItemColors
+import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
+import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
+import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.component.ContentDialogButton
+import io.github.composefluent.component.DialogSize
+import io.github.composefluent.component.FlyoutContainerScope
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
+import io.github.composefluent.component.ScrollbarContainer
+import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import kotlinx.coroutines.delay
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun StreamSelector(
@@ -46,10 +69,39 @@ fun StreamSelector(
     isSubtitle: Boolean = false,
     mediaGuid: String = "",
     guid: String = "",
+    selectedIndex: Int = 0,
 ) {
+    val lazyListState = rememberScrollState(0)
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var deletedItemTitle by remember { mutableStateOf("") }
+    var deletedItemGuid by remember { mutableStateOf("") }
+    val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
+    val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
+    val streamListViewModel: StreamListViewModel = koinViewModel()
+    val density = LocalDensity.current
+
+    LaunchedEffect(subtitleDeleteState) {
+        // 当字幕上传成功后，刷新stream列表
+        if (subtitleDeleteState is UiState.Success) {
+            streamListViewModel.loadData(guid)
+            subtitleDeleteViewModel.clearError()
+        }
+    }
+
     if (streamOptions.isNotEmpty() && streamOptions.size > 1) {
         val interactionSource = remember { MutableInteractionSource() }
         val isHovered by interactionSource.collectIsHoveredAsState()
+        var flyoutHeight by remember(streamOptions) {
+            mutableStateOf(
+                if (isSubtitle && streamOptions.size > 6) {
+                    317.dp
+                } else if (isSubtitle) {
+                    57.dp * (streamOptions.size - 1) + 32.dp
+                } else {
+                    57.dp * streamOptions.size
+                }
+            )
+        }
         MenuFlyoutContainer(
             flyout = {
                 // 检查是否有 "_no_display_" 选项
@@ -81,61 +133,87 @@ fun StreamSelector(
                         onClick = {},
                         modifier = Modifier
                             .width(240.dp)
+                            .padding(bottom = 4.dp, top = 6.dp)
                             .hoverable(interactionSource),
-                        colors = subtitleItemColors()
+                        colors = FlyoutTitleItemColors()
                     )
                 }
-                // 如果有 "_no_display_" 选项，则先显示它
-                noDisplayItem?.let { streamOptionItem ->
-                    MenuFlyoutItem(
-                        text = {
-                            NoDisplayRow(
-                                modifier = Modifier.hoverable(interactionSource),
-                                title = streamOptionItem.title,
-                                isDefault = streamOptionItem.isDefault,
-                                isSelected = streamOptionItem.isSelected,
-                            )
-                        },
-                        onClick = {
-                            onSelected(streamOptionItem.optionGuid)
-//                            currentAudioStream = audioStreams.first { it.guid == audioOption.audioGuid }
-                            isFlyoutVisible = false
-                        },
+                ScrollbarContainer(
+                    adapter = rememberScrollbarAdapter(lazyListState),
+                    modifier = Modifier
+                        .height(flyoutHeight)
+//                        .heightIn(max = 310.dp)
+                ) {
+                    Column(
                         modifier = Modifier
+//                            .height(310.dp)
                             .width(240.dp)
-                            .hoverable(interactionSource)
-//                            .padding(vertical = 4.dp)
-//                            .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent, RoundedCornerShape(4.dp))
-//                        colors = mediaDetailsSelectedListItemColors()
-                    )
-                }
+                            .verticalScroll(lazyListState)
+                    ) {
+                        LaunchedEffect(Unit) {
+                            println("selectedIndex: $selectedIndex")
+                            delay(100)
+                            val itemHeightPx = with(density) { 57.dp.toPx() }
+                            val titleHeightPx = with(density) { 36.dp.toPx() }
+                            val targetPosition = if (isSubtitle) {
+                                (((selectedIndex - 1) * itemHeightPx) + titleHeightPx).toInt()
+                            } else {
+                                (selectedIndex * itemHeightPx).toInt()
+                            }
+                            lazyListState.scrollTo(targetPosition)
+                        }
+                        // 如果有 "_no_display_" 选项，则先显示它
+                        noDisplayItem?.let { streamOptionItem ->
+                            MenuFlyoutItem(
+                                text = {
+                                    NoDisplayRow(
+                                        modifier = Modifier.hoverable(interactionSource),
+                                        title = streamOptionItem.title,
+                                        isDefault = streamOptionItem.isDefault,
+                                        isSelected = streamOptionItem.isSelected,
+                                    )
+                                },
+                                onClick = {
+                                    onSelected(streamOptionItem.optionGuid)
+                                    isFlyoutVisible = false
+                                },
+                                modifier = Modifier
+                                    .width(240.dp)
+                                    .hoverable(interactionSource)
+                            )
+                        }
+                        // 显示其他项目
+                        otherItems.forEach { streamOptionItem ->
+                            MenuFlyoutItem(
+                                text = {
+                                    StreamSelectorRow(
+                                        modifier = Modifier.hoverable(interactionSource),
+                                        title = streamOptionItem.title,
+                                        isDefault = streamOptionItem.isDefault,
+                                        isSelected = streamOptionItem.isSelected,
+                                        isExternal = streamOptionItem.isExternal,
+                                        subtitle1 = streamOptionItem.subtitle1,
+                                        subtitle2 = streamOptionItem.subtitle2,
+                                        subtitle3 = streamOptionItem.subtitle3,
+                                        guid = streamOptionItem.optionGuid,
+                                        onDelete = {
+                                            deletedItemTitle = streamOptionItem.title
+                                            deletedItemGuid = streamOptionItem.optionGuid
+                                            showDeleteDialog = true
+                                        },
+                                    )
+                                },
+                                onClick = {
+                                    onSelected(streamOptionItem.optionGuid)
+                                    isFlyoutVisible = false
+                                },
+                                modifier = Modifier
+                                    .width(240.dp)
+                                    .hoverable(interactionSource)
+                            )
 
-                // 显示其他项目
-                otherItems.forEach { streamOptionItem ->
-                    MenuFlyoutItem(
-                        text = {
-                            StreamSelectorRow(
-                                modifier = Modifier.hoverable(interactionSource),
-                                title = streamOptionItem.title,
-                                isDefault = streamOptionItem.isDefault,
-                                isSelected = streamOptionItem.isSelected,
-                                subtitle1 = streamOptionItem.subtitle1,
-                                subtitle2 = streamOptionItem.subtitle2,
-                                subtitle3 = streamOptionItem.subtitle3
-                            )
-                        },
-                        onClick = {
-                            onSelected(streamOptionItem.optionGuid)
-//                            currentAudioStream = audioStreams.first { it.guid == audioOption.audioGuid }
-                            isFlyoutVisible = false
-                        },
-                        modifier = Modifier
-                            .width(240.dp)
-                            .hoverable(interactionSource)
-//                            .padding(vertical = 4.dp)
-//                            .background(if (audioOption.isSelected) FluentTheme.colors.subtleFill.tertiary else Color.Transparent, RoundedCornerShape(4.dp))
-//                        colors = mediaDetailsSelectedListItemColors()
-                    )
+                        }
+                    }
                 }
             },
             content = {
@@ -148,6 +226,7 @@ fun StreamSelector(
             },
 //            placement = FlyoutPlacement.BottomAlignedStart,
             placement = FlyoutPlacement.Auto,
+            modifier = Modifier
         )
     } else {
         Text(
@@ -156,25 +235,59 @@ fun StreamSelector(
             fontSize = 14.sp
         )
     }
+    CustomContentDialog(
+        title = "删除外挂字幕",
+        visible = showDeleteDialog,
+        size = DialogSize.Standard,
+        primaryButtonText = "删除",
+        secondaryButtonText = "取消",
+        onButtonClick = { contentDialogButton ->
+            when (contentDialogButton) {
+                ContentDialogButton.Secondary -> {
+                }
+
+                ContentDialogButton.Primary -> {
+                    // 删除外挂字幕
+                    subtitleDeleteViewModel.deleteSubtitle(deletedItemGuid)
+                    streamListViewModel.loadData(guid)
+                }
+
+                ContentDialogButton.Close -> {}
+            }
+            showDeleteDialog = false
+        },
+        content = {
+            io.github.composefluent.component.Text(
+                "确定要删除 $deletedItemTitle 外挂字幕吗？"
+            )
+        }
+    )
 }
 
 @Composable
-fun StreamSelectorRow(
+fun FlyoutContainerScope.StreamSelectorRow(
     modifier: Modifier = Modifier,
     title: String,
     isDefault: Boolean,
     isSelected: Boolean,
+    isExternal: Boolean = false,
     subtitle1: String = "",
     subtitle2: String = "",
     subtitle3: String = "",
+    guid: String,
+    onDelete: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isItemHovered by interactionSource.collectIsHoveredAsState()
+//    var showDeleteDialog by remember { mutableStateOf(false) }
+//    val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     Row(
         horizontalArrangement = Arrangement.Start,
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-//            .hoverable(interactionSource)
+            .hoverable(interactionSource)
             .pointerHoverIcon(PointerIcon.Hand)
     ) {
         Column(
@@ -200,10 +313,59 @@ fun StreamSelectorRow(
 //                                            .width(170.dp)
             )
         }
-        if (isSelected) {
+        if (isExternal && isItemHovered) {
+            val iconInteractionSource = remember { MutableInteractionSource() }
+            val isIconHovered by iconInteractionSource.collectIsHoveredAsState()
+            Box(
+                modifier = Modifier
+                    .hoverable(iconInteractionSource)
+                    .size(28.dp)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = {
+                            onDelete()
+//                            showDeleteDialog = true
+                            isFlyoutVisible = false
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .hoverable(iconInteractionSource)
+//                        .align(Alignment.Center)
+                        .background(
+                            color = if (isIconHovered) FluentTheme.colors.stroke.control.default else Color.Transparent,
+                            shape = CircleShape
+                        )
+                )
+
+                Icon(
+                    imageVector = Delete,
+                    contentDescription = "删除字幕",
+                    tint = FluentTheme.colors.text.text.secondary,
+                    modifier = Modifier
+//                        .weight(1f)
+                        .size(14.dp)
+                )
+            }
+//            if (showDeleteDialog) {
+//                CustomConfirmDialog(
+//                    onDismissRequest = { showDeleteDialog = false },
+//                    title = "确认删除",
+//                    contentText = "确定要删除此外挂字幕吗？此操作不可撤销。",
+//                    confirmButtonText = "删除",
+//                    onConfirmClick = {
+//                        subtitleDeleteViewModel.deleteSubtitle(guid)
+//                    }
+//                )
+//            }
+        } else if (isSelected) {
             Icon(
                 imageVector = Icons.Regular.Checkmark,
-                contentDescription = "",
+                contentDescription = "已选择",
                 tint = Colors.PrimaryColor,
                 modifier = Modifier
                     .weight(1f)
@@ -305,7 +467,8 @@ data class StreamOptionItem(
     val subtitle2: String = "",
     val subtitle3: String = "",
     val isDefault: Boolean = false,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val isExternal: Boolean = false
 )
 
 val noDisplayStream = SubtitleStream(

@@ -140,6 +140,7 @@ fun MovieDetailScreen(
     var playInfoResponse: PlayInfoResponse? by remember { mutableStateOf(null) }
     val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
+    val iso6391State by tagViewModel.iso6391State.collectAsState()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
     val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
     val refreshState = LocalRefreshState.current
@@ -151,6 +152,9 @@ fun MovieDetailScreen(
         playInfoViewModel.loadData(guid)
         if (iso6392State !is UiState.Success) {
             tagViewModel.loadIso6392Tags()
+        }
+        if (iso6391State !is UiState.Success) {
+            tagViewModel.loadIso6391Tags()
         }
         if (iso3166State !is UiState.Success) {
             tagViewModel.loadIso3166Tags()
@@ -357,7 +361,8 @@ fun MovieDetailScreen(
                             toastManager,
                             playInfoResponse,
                             iso6392State,
-                            iso3166State
+                            iso3166State,
+                            iso6391State
                         )
                     }
                 }
@@ -401,7 +406,8 @@ fun MediaInfo(
     toastManager: ToastManager,
     playInfoResponse: PlayInfoResponse,
     iso6392State: UiState<List<QueryTagResponse>>,
-    iso3166State: UiState<List<QueryTagResponse>>
+    iso3166State: UiState<List<QueryTagResponse>>,
+    iso6391State: UiState<List<QueryTagResponse>>
 ) {
     var currentMediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
     var selectedVideoStreamIndex by remember { mutableIntStateOf(0) }
@@ -467,7 +473,7 @@ fun MediaInfo(
                 it.mediaGuid == currentMediaGuid
             }
 //            .sortedByDescending { it.index }
-        currentSubtitleStreamList = currentSubtitleStreamList + noDisplayStream
+        currentSubtitleStreamList = listOf(noDisplayStream) + currentSubtitleStreamList
         currentSubtitleStreamGuid = mediaGuidSubTitleGuidMap[currentMediaGuid]
     }
     
@@ -522,6 +528,7 @@ fun MediaInfo(
             currentSubtitleStreamList,
             iso6392State,
             iso3166State,
+            iso6391State,
             onAudioSelected = {
                 currentAudioStreamGuid = it
                 mediaGuidAudioGuidMap[currentMediaGuid] = it
@@ -628,6 +635,7 @@ fun MiddleControls(
     currentSubtitleStreamList: List<SubtitleStream>,
     iso6392State: UiState<List<QueryTagResponse>>,
     iso3166State: UiState<List<QueryTagResponse>>,
+    iso6391State: UiState<List<QueryTagResponse>>,
     onAudioSelected: (audioGuid: String) -> Unit,
     onSubtitleSelected: (subtitleGuid: String) -> Unit
 ) {
@@ -869,6 +877,7 @@ fun MiddleControls(
                     currentSubtitleStream,
                     onSubtitleSelected,
                     iso6392State,
+                    iso6391State,
                     guid
                 )
                 AudioSelector(
@@ -940,18 +949,28 @@ fun AudioSelector(
         }
     }
     val selectedLanguage: String =
-        if (currentAudioStream?.language in listOf("", "und", "zxx", "qaa-qtz")) {
-            "未知音频"
-        } else if (currentAudioStream?.language == null) {
-            "未知音频"
-        } else {
-            (iso6392Map[currentAudioStream.language]?.value
-                ?: currentAudioStream.language) + "音频"
+        when (currentAudioStream?.language) {
+            in listOf("", "und", "zxx", "qaa-qtz") -> {
+                "未知音频"
+            }
+            null -> {
+                "未知音频"
+            }
+            else -> {
+                (iso6392Map[currentAudioStream.language]?.value
+                    ?: currentAudioStream.language) + "音频"
+            }
         }
+    val selectedIndex by remember(selectorOptions, currentAudioStream) {
+        derivedStateOf {
+            currentAudioStreamList.indexOfFirst { it.guid == currentAudioStream?.guid }
+        }
+    }
     StreamSelector(
         selectorOptions,
         selectedLanguage,
         onAudioSelected,
+        selectedIndex = selectedIndex,
     )
 }
 
@@ -961,31 +980,46 @@ fun SubtitleSelector(
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
     iso6392State: UiState<List<QueryTagResponse>>,
-    guid: String =  ""
+    iso6391State: UiState<List<QueryTagResponse>>,
+    guid: String = ""
 ) {
     var iso6392Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
+    var iso6391Map: Map<String, QueryTagResponse> by remember { mutableStateOf(mapOf()) }
 
     if (iso6392State is UiState.Success<List<QueryTagResponse>>) {
         iso6392Map = iso6392State.data.associateBy { it.key }
+    }
+    if (iso6391State is UiState.Success<List<QueryTagResponse>>) {
+        iso6391Map = iso6391State.data.associateBy { it.key }
     }
 
     val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.map { subtitleStream ->
-                val language: String =
-                    if (subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz")) {
-                        "未知"
-                    } else {
-                        iso6392Map[subtitleStream.language]?.value ?: subtitleStream.language
+                val languageTitle: String =
+                    when {
+                        subtitleStream.language in listOf("", "und", "zxx", "qaa-qtz") -> {
+                            "未知"
+                        }
+                        subtitleStream.language.length == 3 -> {
+                            iso6392Map[subtitleStream.language]?.value ?: subtitleStream.language
+                        }
+                        subtitleStream.language.length == 2 -> {
+                            iso6391Map[subtitleStream.language]?.value ?: subtitleStream.language
+                        }
+                        else -> {
+                            subtitleStream.language
+                        }
                     }
                 StreamOptionItem(
                     optionGuid = subtitleStream.guid,
-                    title = language,
+                    title = if (subtitleStream.isExternal == 1) "$languageTitle - 外挂" else languageTitle,
                     subtitle1 = subtitleStream.format.uppercase(),
                     subtitle3 = subtitleStream.title,
 //                    subtitle2 = "",
                     isDefault = subtitleStream.isDefault == 1,
-                    isSelected = subtitleStream.guid == currentSubtitleStream?.guid
+                    isSelected = subtitleStream.guid == currentSubtitleStream?.guid,
+                    isExternal = subtitleStream.isExternal == 1
                 )
             }
         }
@@ -999,12 +1033,27 @@ fun SubtitleSelector(
                 "未知字幕"
             }
             else -> {
-                (iso6392Map[currentSubtitleStream.language]?.value
-                    ?: currentSubtitleStream.language) + "字幕"
+                val languageName = when {
+                currentSubtitleStream.language.length == 3 -> {
+                    iso6392Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
+                }
+                currentSubtitleStream.language.length == 2 -> {
+                    iso6391Map[currentSubtitleStream.language]?.value ?: currentSubtitleStream.language
+                }
+                else -> {
+                    currentSubtitleStream.language
+                }
+            }
+            "${languageName}字幕"
             }
         }
+    val selectedIndex by remember(currentSubtitleStream) {
+        derivedStateOf {
+            currentSubtitleStreamList.indexOfFirst { it.guid == currentSubtitleStream?.guid }
+        }
+    }
     StreamSelector(selectorOptions, selectedLanguage, onSubtitleSelected, true,
-        currentSubtitleStream?.mediaGuid ?: "", guid
+        currentSubtitleStream?.mediaGuid ?: "", guid, selectedIndex
     )
 }
 
