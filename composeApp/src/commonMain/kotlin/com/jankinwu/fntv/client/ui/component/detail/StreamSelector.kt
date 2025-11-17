@@ -157,7 +157,6 @@ fun StreamSelector(
                             .verticalScroll(lazyListState)
                     ) {
                         LaunchedEffect(Unit) {
-                            println("selectedIndex: $selectedIndex")
                             delay(100)
                             val itemHeightPx = with(density) { 57.dp.toPx() }
                             val titleHeightPx = with(density) { 36.dp.toPx() }

@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,8 +29,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.jankinwu.fntv.client.data.model.response.AuthDir
 import com.jankinwu.fntv.client.ui.component.common.FileTreeSelector
 import com.jankinwu.fntv.client.ui.component.common.SelectionMode
+import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
+import com.jankinwu.fntv.client.viewmodel.AppAuthorizedDirViewModel
+import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.LocalContentColor
 import io.github.composefluent.LocalTextStyle
@@ -38,6 +44,7 @@ import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Text
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun AddNasSubtitleDialog(
@@ -47,7 +54,8 @@ fun AddNasSubtitleDialog(
     secondaryButtonText: String? = null,
     closeButtonText: String? = null,
     onButtonClick: (ContentDialogButton, Set<String>?) -> Unit,
-    size: DialogSize = DialogSize.Standard
+    size: DialogSize = DialogSize.Standard,
+    currentDir: String = "",
 ) {
     // 状态：用于保存文件选择器返回的路径 (此处仅用于演示，可以传递给其他组件)
     var selectedFilePaths by remember { mutableStateOf(emptySet<String>()) }
@@ -103,26 +111,28 @@ fun AddNasSubtitleDialog(
     }
 }
 
+data class SidebarItem(val path: List<String>, val title: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddNasSubtitleBox(
     onSelectionChanged: (Set<String>) -> Unit,
 ) {
     // 状态：用于跟踪侧边栏的当前选择
-    var selectedSidebarItem by remember { mutableStateOf("存储空间 2") }
-
+    var selectedSidebarItem: SidebarItem? by remember { mutableStateOf(null) }
     Box(
         modifier = Modifier
             .height(400.dp)
             .width(600.dp),
     ) {
-        Column(modifier = Modifier
-            .border(1.dp, Color.Gray.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-            .fillMaxSize()
+        Column(
+            modifier = Modifier
+                .border(1.dp, Color.Gray.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                .fillMaxSize()
         ) {
             // 1. 顶部标题栏
             TopBarBox(
-                title = selectedSidebarItem,
+                title = selectedSidebarItem?.title ?: "视频所在位置",
                 contentColor = Color.White
             )
             Box(
@@ -152,6 +162,7 @@ fun AddNasSubtitleBox(
 
                 // 2c. 主内容 (调用文件选择器)
                 MainContent(
+                    selectedSidebarItem = selectedSidebarItem,
                     onSelectionChanged = { paths ->
                         onSelectionChanged(paths)
                         // 调试：打印选中的路径
@@ -180,12 +191,76 @@ fun TopBarBox(title: String, contentColor: Color) {
  */
 @Composable
 fun Sidebar(
-    selectedItem: String,
-    onItemSelected: (String) -> Unit,
+    selectedItem: SidebarItem?,
+    onItemSelected: (SidebarItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 侧边栏项目列表
-    val items = listOf("视频所在位置", "存储空间 2")
+    val fileInfo = LocalFileInfo.current
+    val authorizedDirViewModel: AppAuthorizedDirViewModel = koinViewModel<AppAuthorizedDirViewModel>()
+    val authorizedDirState by authorizedDirViewModel.uiState.collectAsState()
+    var authDirList by remember { mutableStateOf<List<AuthDir>?>(null) }
+    LaunchedEffect(Unit) {
+        authorizedDirViewModel.loadAppAuthorizedDir()
+    }
+    LaunchedEffect(authorizedDirState) {
+        when (authorizedDirState) {
+            is UiState.Success -> {
+                authDirList = (authorizedDirState as UiState.Success).data.authDirList
+            }
+            else -> {
+                // 处理其他状态，如加载中、错误等
+            }
+        }
+    }
+
+    val currentDir = fileInfo?.path?.let { path ->
+        // 提取文件所在目录路径
+        if (path.contains("/")) {
+            path.substringBeforeLast("/")
+        } else {
+            ""
+        }
+    } ?: ""
+    val currentDirItem = SidebarItem(listOf(currentDir), "视频所在位置")
+
+    // 从 authDirList 构建侧边栏项目列表
+    val items = remember(authDirList) {
+        val sidebarItems = mutableListOf<SidebarItem>()
+
+        // 添加当前目录项
+        sidebarItems.add(currentDirItem)
+
+        // 遍历 authDirList 构建存储空间项
+        authDirList?.forEach { authDir ->
+            val path = authDir.path
+            // 从路径中提取存储空间编号，例如 /vol2 -> 存储空间2
+            if (path.startsWith("/vol") && path.length >= 5) {
+                val volNumber = path.substring(4, 5)
+                if (volNumber.all { it.isDigit() }) {
+                    val storageTitle = "存储空间$volNumber"
+                    // 检查是否已存在相同标题的项
+                    val existingItem = sidebarItems.find { it.title == storageTitle }
+                    if (existingItem != null) {
+                        // 如果存在，则添加路径到现有项
+                        sidebarItems.remove(existingItem)
+                        val updatedPaths = existingItem.path.toMutableList().apply { add(path) }
+                        sidebarItems.add(SidebarItem(updatedPaths.toList(), storageTitle))
+                    } else {
+                        // 如果不存在，则新建项
+                        sidebarItems.add(SidebarItem(listOf(path), storageTitle))
+                    }
+                }
+            }
+        }
+        sidebarItems
+    }
+
+    // 设置默认选中项为视频所在目录
+    LaunchedEffect(items) {
+        if (selectedItem == null && items.isNotEmpty()) {
+            onItemSelected(currentDirItem)
+        }
+    }
 
     Column(
         modifier = modifier
@@ -195,7 +270,7 @@ fun Sidebar(
     ) {
         items.forEach { item ->
             SidebarItem(
-                text = item,
+                text = item.title,
                 isSelected = (item == selectedItem),
                 onClick = { onItemSelected(item) }
             )
@@ -233,12 +308,13 @@ fun SidebarItem(
  */
 @Composable
 fun MainContent(
+    selectedSidebarItem: SidebarItem?,
     onSelectionChanged: (Set<String>) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
-            .background(Color(0xFF2B2B2B)) // 主内容区域背景
+//            .background(Color(0xFF2B2B2B)) // 主内容区域背景
     ) {
         // ---
         // --- 这是您所要求的文件选择器的 "调用代码" ---

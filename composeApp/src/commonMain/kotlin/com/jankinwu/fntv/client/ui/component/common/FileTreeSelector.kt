@@ -21,7 +21,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,10 +32,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.data.constants.Colors
+import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
+import com.jankinwu.fntv.client.ui.component.common.DirectoryContentFetcher.fetchDirectoryContents
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.Text
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 // --- 1. 数据模型 ---
 
@@ -45,7 +48,7 @@ import kotlinx.coroutines.launch
  */
 data class ApiFileItem(
     val filename: String,
-    val is_dir: Boolean
+    val isDir: Boolean
     // 其他字段 (trim_name, trim_id) 在此示例中未使用
 )
 
@@ -77,36 +80,25 @@ data class TreeNode(
 // --- 2. 模拟的 API 请求 ---
 
 /**
- * 模拟的网络请求。
- * 接收一个路径，返回该路径下的文件和目录列表。
+ * 通过API获取指定路径下的文件和目录列表
  */
-suspend fun fetchDirectoryContents(path: String): List<ApiFileItem> {
-    // 模拟网络延迟
-    delay(500)
-
-    // 模拟的 API 响应数据
-    return when (path) {
-        "root" -> listOf(ApiFileItem("video", true))
-        "root/video" -> listOf(ApiFileItem("BiliSync", true))
-        "root/video/BiliSync" -> listOf(
-            ApiFileItem("21世纪电影百排行，和你想的一样吗？", true),
-            ApiFileItem("“大陆缺什么，我就去做什么。”中国半导体...", true),
-            ApiFileItem("【激荡四十年】系列", true)
-        )
-        "root/video/BiliSync/21世纪电影百排行，和你想的一样吗？" -> listOf(
-            ApiFileItem("BV1hV3uzRE31.zh-CN.default.ass", false),
-            ApiFileItem("movie.mp4", false),
-            ApiFileItem("image.jpg", false)
-        )
-        // 模拟一个包含 JSON 中示例数据的文件夹
-        "root/video/BiliSync/【激荡四十年】系列" -> listOf(
-            ApiFileItem("Bohemian.Rhapsody.2018.mkv", false),
-            ApiFileItem("Bohemian.Rhapsody.2018.nfo", false),
-            ApiFileItem("folder.jpg", false),
-            ApiFileItem("movie.nfo", false),
-            ApiFileItem("其他子目录", true)
-        )
-        else -> emptyList() // 默认返回空列表
+object DirectoryContentFetcher : KoinComponent {
+    private val fnOfficialApi: FnOfficialApiImpl by inject()
+    
+    suspend fun fetchDirectoryContents(path: String): List<ApiFileItem> {
+        // 模拟网络延迟
+        delay(500)
+        
+        // 直接使用 API 实现获取数据
+        val serverPathResponses = fnOfficialApi.getFilesByServerPath(path)
+        
+        // 将 ServerPathResponse 转换为 ApiFileItem
+        return serverPathResponses.map { response ->
+            ApiFileItem(
+                filename = response.filename,
+                isDir = response.isDir
+            )
+        }
     }
 }
 
@@ -179,8 +171,8 @@ fun FileTreeSelector(
                         TreeNode(
                             name = it.filename,
                             path = "$targetPath/${it.filename}",
-                            isDirectory = it.is_dir,
-                            children = if (it.is_dir) null else emptyList()
+                            isDirectory = it.isDir,
+                            children = if (it.isDir) null else emptyList()
                         )
                     }
                     root = root.updateNode(targetPath) {
@@ -228,9 +220,9 @@ fun FileTreeSelector(
                     Spacer(Modifier.width(8.dp))
                     Text("Loading root...", color = Color.White)
                 }
-                LaunchedEffect(rootPath) {
-                    onDirectoryClick(root)
-                }
+//                LaunchedEffect(rootPath) {
+//                    onDirectoryClick(root)
+//                }
             }
         } else {
             // 递归渲染文件树项
