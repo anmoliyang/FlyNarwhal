@@ -270,7 +270,7 @@ fun StreamSelector(
     AddNasSubtitleDialog(
         title = "添加 NAS 字幕文件",
         visible = showAddNasSubtitleDialog,
-        size = DialogSize.Standard,
+        size = DialogSize.Max,
         primaryButtonText = "选择",
         secondaryButtonText = "取消",
         onButtonClick = { contentDialogButton, selectedPaths ->

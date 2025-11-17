@@ -68,6 +68,7 @@ enum class SelectionMode {
  * @param children 首次加载后，目录的子节点列表；null 表示尚未加载
  * @param isExpanded 目录是否已展开
  * @param isLoading 目录是否正在加载子节点
+ * @param isRoot 是否是根节点
  */
 data class TreeNode(
     val name: String,
@@ -75,7 +76,8 @@ data class TreeNode(
     val isDirectory: Boolean,
     val children: List<TreeNode>? = null,
     val isExpanded: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isRoot: Boolean = false
 )
 
 // --- 2. 模拟的 API 请求 ---
@@ -119,19 +121,22 @@ object DirectoryContentFetcher : KoinComponent {
  * @param selectionMode 允许选择的类型 (文件 / 文件夹 / 两者)
  * @param allowedExtensions 允许显示的文件后缀名列表 (小写)。如果为空，则显示所有文件。
  * @param onSelectionChanged 当选择项发生变化时调用的回调，返回一个包含所有选中路径的 Set
+ * @param hideRoot 是否隐藏根目录（对于"视频所在位置"使用）
  */
 @Composable
 fun FileTreeSelector(
     rootPath: String,
     selectionMode: SelectionMode,
     allowedExtensions: List<String>,
-    onSelectionChanged: (selectedPaths: Set<String>) -> Unit // **[修改点]** 回调返回 Set
+    onSelectionChanged: (selectedPaths: Set<String>) -> Unit,
+    hideRoot: Boolean = false
 ) {
     FileTreeSelector(
         rootPaths = listOf(rootPath),
         selectionMode = selectionMode,
         allowedExtensions = allowedExtensions,
-        onSelectionChanged = onSelectionChanged
+        onSelectionChanged = onSelectionChanged,
+        hideRoot = hideRoot
     )
 }
 
@@ -142,25 +147,28 @@ fun FileTreeSelector(
  * @param selectionMode 允许选择的类型 (文件 / 文件夹 / 两者)
  * @param allowedExtensions 允许显示的文件后缀名列表 (小写)。如果为空，则显示所有文件。
  * @param onSelectionChanged 当选择项发生变化时调用的回调，返回一个包含所有选中路径的 Set
+ * @param hideRoot 是否隐藏根目录（对于"视频所在位置"使用）
  */
 @Composable
 fun FileTreeSelector(
     rootPaths: List<String>,
     selectionMode: SelectionMode,
     allowedExtensions: List<String>,
-    onSelectionChanged: (selectedPaths: Set<String>) -> Unit // **[修改点]** 回调返回 Set
+    onSelectionChanged: (selectedPaths: Set<String>) -> Unit,
+    hideRoot: Boolean = false
 ) {
     // 树的根节点状态 - 支持多个根节点
-    var roots by remember {
+    var roots by remember(rootPaths) {
         mutableStateOf(
             rootPaths.map { rootPath ->
                 TreeNode(
                     name = rootPath.substringAfterLast("/", rootPath),
                     path = rootPath,
                     isDirectory = true,
-                    isExpanded = true, // 默认展开根目录
-                    isLoading = true, // 初始设置为正在加载
-                    children = null // 初始为 null，表示未加载
+                    isExpanded = false, // 默认折叠根目录
+                    isLoading = false, // 初始不加载
+                    children = null, // 初始为 null，表示未加载
+                    isRoot = true // 标记为根节点
                 )
             }
         )
@@ -172,28 +180,31 @@ fun FileTreeSelector(
     // 用于执行异步加载的协程作用域
     val scope = rememberCoroutineScope()
 
-    // 初始加载所有根节点的内容
-    LaunchedEffect(roots) {
-        roots.forEach { root ->
-            if (root.children == null) {
-                scope.launch {
-                    val apiChildren = fetchDirectoryContents(root.path)
-                    val newChildren = apiChildren.map {
-                        TreeNode(
-                            name = it.filename,
-                            path = "${root.path}/${it.filename}",
-                            isDirectory = it.isDir,
-                            children = if (it.isDir) null else emptyList()
-                        )
-                    }
-                    roots = roots.map {
-                        if (it.path == root.path) {
-                            it.copy(
-                                isLoading = false,
-                                children = newChildren
+    // 初始加载所有根节点的内容（针对hideRoot情况）
+    LaunchedEffect(rootPaths) {
+        if (hideRoot) {
+            roots.forEach { root ->
+                if (root.children == null && !root.isLoading) {
+                    scope.launch {
+                        val apiChildren = fetchDirectoryContents(root.path)
+                        val newChildren = apiChildren.map {
+                            TreeNode(
+                                name = it.filename,
+                                path = "${root.path}/${it.filename}",
+                                isDirectory = it.isDir,
+                                children = if (it.isDir) null else emptyList()
                             )
-                        } else {
-                            it
+                        }
+                        roots = roots.map {
+                            if (it.path == root.path) {
+                                it.copy(
+                                    isLoading = false,
+                                    children = newChildren,
+                                    isExpanded = true
+                                )
+                            } else {
+                                it
+                            }
                         }
                     }
                 }
@@ -283,7 +294,7 @@ fun FileTreeSelector(
             .background(Color(0xFF2B2B2B))
     ) {
         // 启动递归渲染
-        if (roots.any { it.children == null && !it.isLoading }) {
+        if (roots.any { it.children == null && !it.isLoading && hideRoot }) {
             // 根目录的初始加载
             item {
                 Row(
@@ -298,43 +309,73 @@ fun FileTreeSelector(
         } else {
             // 递归渲染所有根节点下的文件树项
             roots.forEach { root ->
-                // 显示根节点名称
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp, horizontal = 8.dp)
-                    ) {
-                        Text(
-                            text = root.name,
-                            color = Color.White,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                if (hideRoot) {
+                    // 如果隐藏根目录，直接渲染其子项
+                    if (root.children != null) {
+                        fileTreeItems(
+                            nodes = root.children,
+                            depth = 0,
+                            selectionMode = selectionMode,
+                            allowedExtensions = allowedExtensions.map { it.lowercase() },
+                            selectedPaths = selectedPaths,
+                            onDirectoryClick = { onDirectoryClick(it) },
+                            onToggleSelection = onToggleSelection
+                        )
+                    } else if (root.isLoading) {
+                        // 显示加载状态
+                        item {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Loading ${root.name}...", color = Color.White)
+                            }
+                        }
+                    }
+                } else {
+                    // 显示根节点（作为普通目录节点显示）
+                    item {
+                        FileNodeItem(
+                            node = root.copy(isDirectory = true), // 确保根节点显示为目录图标
+                            depth = 0,
+                            isSelectable = false,
+                            isSelected = false,
+                            onNodeClick = {
+                                onDirectoryClick(root)
+                            },
+                            onCheckboxChange = {}
                         )
                     }
-                }
-                
-                // 递归渲染文件树项
-                if (root.children != null) {
-                    fileTreeItems(
-                        nodes = root.children,
-                        depth = 0,
-                        selectionMode = selectionMode,
-                        allowedExtensions = allowedExtensions.map { it.lowercase() },
-                        selectedPaths = selectedPaths, // **[修改点]** 传入 Set
-                        onDirectoryClick = { onDirectoryClick(it) },
-                        onToggleSelection = onToggleSelection // **[修改点]** 传入 toggle 处理器
-                    )
-                } else if (root.isLoading) {
-                    // 显示单个根节点的加载状态
-                    item {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Loading ${root.name}...", color = Color.White)
+                    
+                    // 递归渲染文件树项（仅在展开时）
+                    if (root.isExpanded && root.children != null) {
+                        fileTreeItems(
+                            nodes = root.children,
+                            depth = 1, // 根目录本身占一层深度
+                            selectionMode = selectionMode,
+                            allowedExtensions = allowedExtensions.map { it.lowercase() },
+                            selectedPaths = selectedPaths,
+                            onDirectoryClick = { onDirectoryClick(it) },
+                            onToggleSelection = onToggleSelection
+                        )
+                    } else if (root.isLoading) {
+                        // 显示单个根节点的加载状态
+                        item {
+                            Row(
+                                modifier = Modifier.padding(16.dp, 0.dp, 16.dp, 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Spacer(Modifier.width(24.dp)) // 缩进根节点的子级
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Loading ${root.name}...", color = Color.White)
+                            }
                         }
+                    } else if (!root.isExpanded && root.children == null) {
+                        // 根节点未展开且未加载子项时，不显示任何内容
+                        // 这样就实现了懒加载的效果
                     }
                 }
             }

@@ -160,7 +160,7 @@ fun AddNasSubtitleBox(
                     onItemSelected = { selectedSidebarItem = it },
                     modifier = Modifier
                         .fillMaxHeight()
-                        .width(200.dp)
+                        .width(150.dp)
                 )
 
                 // 2b. 垂直分割线
@@ -190,10 +190,16 @@ fun AddNasSubtitleBox(
 fun TopBarBox(title: String, contentColor: Color) {
     Row(
         modifier = Modifier
+            .height(40.dp)
             .fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = title, color = contentColor)
+        Text(
+            text = title,
+            modifier = Modifier
+                .padding(start = 16.dp),
+            color = contentColor
+        )
     }
 }
 
@@ -361,7 +367,8 @@ fun MainContent(
                         rootPath = selectedSidebarItem.path.firstOrNull() ?: "root",
                         selectionMode = SelectionMode.FilesOnly,
                         allowedExtensions = listOf("ass", "srt", "vtt"),
-                        onSelectionChanged = onSelectionChanged
+                        onSelectionChanged = onSelectionChanged,
+                        hideRoot = true // 隐藏根目录
                     )
                 }
 
@@ -378,17 +385,19 @@ fun MainContent(
                         rootPath = selectedSidebarItem.path.firstOrNull() ?: "root",
                         selectionMode = SelectionMode.FilesOnly,
                         allowedExtensions = listOf("ass", "srt", "vtt"),
-                        onSelectionChanged = onSelectionChanged
+                        onSelectionChanged = onSelectionChanged,
+                        hideRoot = true // 隐藏根目录
                     )
                 }
             }
         } else {
-            // 对于其他存储空间，显示所有根目录
+            // 对于其他存储空间，显示所有根目录，但采用懒加载方式
             FileTreeSelector(
                 rootPaths = selectedSidebarItem?.path ?: listOf("root"),
                 selectionMode = SelectionMode.FilesOnly,
                 allowedExtensions = listOf("ass", "srt", "vtt"),
-                onSelectionChanged = onSelectionChanged
+                onSelectionChanged = onSelectionChanged,
+                hideRoot = false // 不隐藏根目录
             )
         }
     }
