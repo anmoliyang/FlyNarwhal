@@ -45,6 +45,7 @@ import com.jankinwu.fntv.client.ui.FlyoutTitleItemColors
 import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
+import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
@@ -78,6 +79,7 @@ fun StreamSelector(
     var deletedItemGuid by remember { mutableStateOf("") }
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
+    val subtitleMarkViewModel: SubtitleMarkViewModel = koinViewModel()
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val density = LocalDensity.current
 
@@ -129,7 +131,7 @@ fun StreamSelector(
                                     modifier = Modifier.hoverable(interactionSource),
                                     guid,
                                     onAddNasSubtitleSelected = {
-
+                                        showAddNasSubtitleDialog = true
                                     }
                                 )
                             }
@@ -272,19 +274,21 @@ fun StreamSelector(
         size = DialogSize.Standard,
         primaryButtonText = "选择",
         secondaryButtonText = "取消",
-        onButtonClick = { contentDialogButton ->
+        onButtonClick = { contentDialogButton, selectedPaths ->
             when (contentDialogButton) {
-                ContentDialogButton.Secondary -> {
-                }
-
                 ContentDialogButton.Primary -> {
                     // 添加 NAS 字幕
+                    selectedPaths?.let {
+                        subtitleMarkViewModel.markSubtitles(mediaGuid, selectedPaths.toList())
+                    }
+                }
+                ContentDialogButton.Secondary -> {
 
                 }
 
                 ContentDialogButton.Close -> {}
             }
-            showDeleteDialog = false
+            showAddNasSubtitleDialog = false
         }
     )
 }

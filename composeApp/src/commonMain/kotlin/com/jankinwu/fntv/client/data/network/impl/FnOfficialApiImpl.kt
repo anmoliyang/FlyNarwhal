@@ -248,8 +248,6 @@ class FnOfficialApiImpl() : FnOfficialApi {
     private suspend inline fun <reified T> post(
         url: String,
         body: Any? = emptyMap<String, Any>(),
-        isFormData: Boolean = false,
-        formData: List<Pair<String, Any?>> = emptyList(),
         noinline block: (HttpRequestBuilder.() -> Unit)? = null
     ): T {
         return try {

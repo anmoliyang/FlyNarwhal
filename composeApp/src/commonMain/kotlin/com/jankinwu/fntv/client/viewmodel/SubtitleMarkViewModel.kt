@@ -17,7 +17,8 @@ class SubtitleMarkViewModel : BaseViewModel() {
     private val _uiState = MutableStateFlow<UiState<List<SubtitleMarkResponse>>>(UiState.Initial)
     val uiState: StateFlow<UiState<List<SubtitleMarkResponse>>> = _uiState.asStateFlow()
 
-    fun markSubtitles(request: SubtitleMarkRequest) {
+    fun markSubtitles(mediaGuid: String, filePaths: List<String>) {
+        val request = SubtitleMarkRequest(mediaGuid, filePaths);
         viewModelScope.launch {
             executeWithLoading(_uiState) {
                 fnOfficialApi.subtitleMark(request)

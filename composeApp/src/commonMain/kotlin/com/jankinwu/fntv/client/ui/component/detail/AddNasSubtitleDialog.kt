@@ -1,6 +1,7 @@
 package com.jankinwu.fntv.client.ui.component.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +46,7 @@ fun AddNasSubtitleDialog(
     primaryButtonText: String,
     secondaryButtonText: String? = null,
     closeButtonText: String? = null,
-    onButtonClick: (ContentDialogButton) -> Unit,
+    onButtonClick: (ContentDialogButton, Set<String>?) -> Unit,
     size: DialogSize = DialogSize.Standard
 ) {
     // 状态：用于保存文件选择器返回的路径 (此处仅用于演示，可以传递给其他组件)
@@ -77,19 +78,22 @@ fun AddNasSubtitleDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AccentButton(
                         modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Primary) }
+                        onClick = {
+                            onButtonClick(ContentDialogButton.Primary, selectedFilePaths)
+                        },
+                        disabled = selectedFilePaths.isEmpty(),
                     ) {
                         Text(primaryButtonText)
                     }
                     if (secondaryButtonText != null) Button(
                         modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Secondary) }
+                        onClick = { onButtonClick(ContentDialogButton.Secondary, null) }
                     ) {
                         Text(secondaryButtonText)
                     }
                     if (closeButtonText != null) Button(
                         modifier = Modifier.weight(1f),
-                        onClick = { onButtonClick(ContentDialogButton.Close) }
+                        onClick = { onButtonClick(ContentDialogButton.Close, null) }
                     ) {
                         Text(closeButtonText)
                     }
@@ -109,10 +113,13 @@ fun AddNasSubtitleBox(
 
     Box(
         modifier = Modifier
-            .fillMaxSize(),
+            .height(400.dp)
+            .width(600.dp),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-
+        Column(modifier = Modifier
+            .border(1.dp, Color.Gray.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+            .fillMaxSize()
+        ) {
             // 1. 顶部标题栏
             TopBarBox(
                 title = selectedSidebarItem,
@@ -122,10 +129,11 @@ fun AddNasSubtitleBox(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.Gray.copy(alpha = 0.5f))
             )
             // 2. 主内容区域 (侧边栏 + 文件树)
-            Row(modifier = Modifier.fillMaxSize()) {
+            // **修改：使用 weight(1f) 占据剩余空间，而不是 fillMaxSize()**
+            Row(modifier = Modifier.weight(1f)) {
 
                 // 2a. 侧边栏
                 Sidebar(
@@ -134,35 +142,23 @@ fun AddNasSubtitleBox(
                     modifier = Modifier.fillMaxHeight().width(200.dp)
                 )
 
-                // 2. 主内容区域 (侧边栏 + 文件树)
-                // **修改：使用 weight(1f) 占据剩余空间，而不是 fillMaxSize()**
-                Row(modifier = Modifier.weight(1f)) {
+                // 2b. 垂直分割线
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .width(1.dp)
+                        .background(Color.Gray.copy(alpha = 0.5f))
+                )
 
-                    // 2a. 侧边栏
-                    Sidebar(
-                        selectedItem = selectedSidebarItem,
-                        onItemSelected = { selectedSidebarItem = it },
-                        modifier = Modifier.fillMaxHeight().width(200.dp)
-                    )
-
-                    // 2b. 垂直分割线
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(1.dp)
-                            .background(Color.Gray.copy(alpha = 0.5f))
-                    )
-
-                    // 2c. 主内容 (调用文件选择器)
-                    MainContent(
-                        onSelectionChanged = { paths ->
-                            onSelectionChanged(paths)
-                            // 调试：打印选中的路径
-                            println("Selected Paths: $paths")
-                        },
-                        modifier = Modifier.fillMaxSize() // 占据剩余空间
-                    )
-                }
+                // 2c. 主内容 (调用文件选择器)
+                MainContent(
+                    onSelectionChanged = { paths ->
+                        onSelectionChanged(paths)
+                        // 调试：打印选中的路径
+                        println("Selected Paths: $paths")
+                    },
+                    modifier = Modifier.fillMaxSize() // 占据剩余空间
+                )
             }
         }
     }
