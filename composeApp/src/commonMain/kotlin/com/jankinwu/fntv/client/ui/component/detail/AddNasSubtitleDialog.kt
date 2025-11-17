@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -32,7 +32,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.model.response.AuthDir
-import com.jankinwu.fntv.client.data.model.response.ServerPathResponse
 import com.jankinwu.fntv.client.ui.component.common.FileTreeSelector
 import com.jankinwu.fntv.client.ui.component.common.SelectionMode
 import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
@@ -80,7 +79,10 @@ fun AddNasSubtitleDialog(
                     LocalTextStyle provides FluentTheme.typography.body,
                     LocalContentColor provides FluentTheme.colors.text.text.primary
                 ) {
-                    AddNasSubtitleBox(onSelectionChanged = { selectedFilePaths = it })
+                    AddNasSubtitleBox(
+                        onSelectionChanged = { selectedFilePaths = it },
+                        onSelectedSidebarItemChanged = { selectedFilePaths = emptySet() } // 清空已选文件
+                    )
                 }
             }
             // Divider
@@ -121,6 +123,7 @@ data class SidebarItem(val path: List<String>, val title: String)
 @Composable
 fun AddNasSubtitleBox(
     onSelectionChanged: (Set<String>) -> Unit,
+    onSelectedSidebarItemChanged: () -> Unit = {}, // 添加回调参数
 ) {
     // 状态：用于跟踪侧边栏的当前选择
     var selectedSidebarItem: SidebarItem? by remember { mutableStateOf(null) }
@@ -157,7 +160,10 @@ fun AddNasSubtitleBox(
                 // 2a. 侧边栏
                 Sidebar(
                     selectedItem = selectedSidebarItem,
-                    onItemSelected = { selectedSidebarItem = it },
+                    onItemSelected = { 
+                        selectedSidebarItem = it
+                        onSelectedSidebarItemChanged() // 当侧边栏选项改变时调用回调
+                    },
                     modifier = Modifier
                         .fillMaxHeight()
                         .width(150.dp)
