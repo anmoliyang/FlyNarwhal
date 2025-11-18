@@ -64,4 +64,6 @@ val viewModelModule = module {
     viewModelOf (::AppAuthorizedDirViewModel)
     viewModelOf (::ServerPathViewModel)
     viewModelOf (::SubtitleMarkViewModel)
+    viewModelOf (::SubtitleSearchViewModel)
+    viewModelOf (::SubtitleDownloadViewModel)
 }
