@@ -97,6 +97,7 @@ import com.jankinwu.fntv.client.ui.component.detail.StreamOptionItem
 import com.jankinwu.fntv.client.ui.component.detail.StreamSelector
 import com.jankinwu.fntv.client.ui.component.detail.noDisplayStream
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.detail.MediaInfoScreen
 import com.jankinwu.fntv.client.viewmodel.FavoriteViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
@@ -369,7 +370,9 @@ fun MovieDetailScreen(
                             playInfoResponse,
                             iso6392State,
                             iso3166State,
-                            iso6391State
+                            iso6391State,
+                            modifier = Modifier
+                                .padding(horizontal = 48.dp)
                         )
                     }
                 }
@@ -380,6 +383,9 @@ fun MovieDetailScreen(
                             .padding(horizontal = 16.dp),
                         scrollRowItemList
                     )
+                }
+                item{
+                    MediaInfoScreen(modifier = Modifier.padding(horizontal = 48.dp))
                 }
             }
         }
@@ -414,7 +420,8 @@ fun MediaInfo(
     playInfoResponse: PlayInfoResponse,
     iso6392State: UiState<List<QueryTagResponse>>,
     iso3166State: UiState<List<QueryTagResponse>>,
-    iso6391State: UiState<List<QueryTagResponse>>
+    iso6391State: UiState<List<QueryTagResponse>>,
+    modifier: Modifier = Modifier
 ) {
     var currentMediaGuid by remember { mutableStateOf(playInfoResponse.mediaGuid) }
     var selectedVideoStreamIndex by remember { mutableIntStateOf(0) }
@@ -508,9 +515,9 @@ fun MediaInfo(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 48.dp, vertical = 24.dp)
+            .padding(vertical = 24.dp)
     ) {
         // 进度条
         itemData.watchedTs.let {

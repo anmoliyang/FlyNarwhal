@@ -64,7 +64,11 @@ fun CastScrollRow(
                 )
             }
 
-            ScrollRow(scrollRowItemList) { _, movie, modifier, _ ->
+            ScrollRow(
+                scrollRowItemList,
+                modifier = Modifier
+//                    .padding(end = 48.dp)
+            ) { _, movie, modifier, _ ->
                 CastAvatar(
                     modifier = modifier,
                     imageUrl = movie.posterImg,
