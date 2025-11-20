@@ -5,7 +5,9 @@ import com.jankinwu.fntv.client.data.model.response.MediaDbListResponse
 import com.jankinwu.fntv.client.data.model.response.MediaItem
 import com.jankinwu.fntv.client.data.model.response.PersonList
 import com.jankinwu.fntv.client.data.model.response.PlayDetailResponse
+import com.jankinwu.fntv.client.data.model.response.SearchingSubtitleInfo
 import com.jankinwu.fntv.client.enums.FnTvMediaType
+import com.jankinwu.fntv.client.ui.component.common.SubtitleItemData
 import java.util.concurrent.TimeUnit
 
 fun convertMediaDbListResponseToScrollRowItem(item: MediaDbListResponse): ScrollRowItemData {
@@ -143,5 +145,15 @@ fun formatSeconds(seconds: Int): String {
         String.format("%d 小时 %d 分钟", hours, minutes)
     } else {
         String.format("%d 分钟 %d 秒", minutes, remainingSeconds)
+    }
+}
+
+fun convertToSubtitleItemList(subtitles: List<SearchingSubtitleInfo>): List<SubtitleItemData> {
+    return subtitles.map {
+        SubtitleItemData(
+            fileName = it.filename,
+            download = it.download,
+            trimId = it.trimId,
+        )
     }
 }

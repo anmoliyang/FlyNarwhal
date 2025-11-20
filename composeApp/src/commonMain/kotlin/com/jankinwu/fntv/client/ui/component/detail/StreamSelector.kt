@@ -46,6 +46,7 @@ import com.jankinwu.fntv.client.ui.flyoutTitleItemColors
 import com.jankinwu.fntv.client.ui.component.common.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.AddSubtitleFlyout
 import com.jankinwu.fntv.client.ui.component.common.SubtitleSearchDialog
+import com.jankinwu.fntv.client.ui.screen.LocalFileInfo
 import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
@@ -86,7 +87,7 @@ fun StreamSelector(
     val subtitleMarkViewModel: SubtitleMarkViewModel = koinViewModel()
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val density = LocalDensity.current
-
+    val fileInfo = LocalFileInfo.current
     LaunchedEffect(subtitleDeleteState) {
         // 当字幕上传成功后，刷新stream列表
         if (subtitleDeleteState is UiState.Success) {
@@ -303,6 +304,7 @@ fun StreamSelector(
         visible = showSearchSubtitleDialog,
         size = DialogSize.Max,
         mediaGuid,
+        mediaFileName = fileInfo?.fileName ?: "",
         onDismissRequest = { showSearchSubtitleDialog = false }
     )
 }
