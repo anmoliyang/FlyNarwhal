@@ -2,6 +2,7 @@ package com.jankinwu.fntv.client.ui.component.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,19 +16,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
@@ -37,16 +48,17 @@ import io.github.composefluent.FluentTheme
 
 // 文件信息数据
 data class FileInfoData(
-    val location: String,
-    val size: String,
-    val createdDate: String,
-    val addedDate: String
+    val location: String = "",
+    val size: String = "",
+    val createdDate: String = "",
+    val addedDate: String = ""
 )
 
 // 媒体轨道信息 (用于视频、音频、字幕)
 data class MediaTrackInfo(
-    val type: String, // "视频", "音频", "字幕"
-    val details: String,
+    // "视频", "音频", "字幕"
+    val type: String = "",
+    var details: String = "",
     val icon: ImageVector
 )
 
@@ -59,15 +71,7 @@ data class MediaDetails(
     val imdbLink: String
 )
 
-// 定义颜色常量以匹配截图风格
-object DarkThemeColors {
-    val Background = Color.Transparent // 整体背景
-    val Surface = Color(0xFF1E1E1E)    // 卡片背景
-    val TextPrimary = Color(0xFFE0E0E0) // 主要文字 (亮白)
-    val TextSecondary = Color(0xFFAAAAAA) // 次要文字 (灰色标签)
-    val TextLink = Color(0xFF64B5F6) // 链接颜色 (可选)
-}
-
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamData, imdbId: String) {
     val isoTagData = LocalIsoTagData.current
@@ -86,13 +90,14 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
 //        subtitleTrack = MediaTrackInfo("字幕", "中文 HDMV_PGS_SUBTITLE", Subtitle),
 //        imdbLink = "https://www.imdb.com/title/tt0367594/"
 //    )
-    val mediaDetailData = FnDataConvertor.convertToMediaDetails(currentStreamData, isoTagData, imdbId)
+    val mediaDetailData =
+        FnDataConvertor.convertToMediaDetails(currentStreamData, isoTagData, imdbId)
 
     // 整体容器
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(DarkThemeColors.Background)
+            .background(Color.Transparent)
             .padding(vertical = 24.dp)
     ) {
         // 1. 文件信息部分
@@ -113,19 +118,30 @@ fun MediaInfo(modifier: Modifier = Modifier, currentStreamData: CurrentStreamDat
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = "链接:  ",
-                color = DarkThemeColors.TextSecondary,
+                color = FluentTheme.colors.text.text.secondary,
                 fontSize = 14.sp
             )
+            var isImdbHovered by remember { mutableStateOf(false) }
             Text(
                 text = "IMDB链接",
-                color = DarkThemeColors.TextPrimary,
+                color = FluentTheme.colors.text.text.primary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 modifier = Modifier
-                    .clickable {
+                    .onPointerEvent(PointerEventType.Enter) { isImdbHovered = true }
+                    .onPointerEvent(PointerEventType.Exit) { isImdbHovered = false }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
                         uriHandler.openUri(mediaDetailData.imdbLink)
                     }
-                    .pointerHoverIcon(PointerIcon.Hand)
+                    .pointerHoverIcon(PointerIcon.Hand),
+                style = if (isImdbHovered) {
+                    TextStyle(textDecoration = TextDecoration.Underline) // 悬停时添加下划线
+                } else {
+                    LocalTextStyle.current
+                }
             )
         }
     }
@@ -150,10 +166,10 @@ fun FileInfoSection(info: FileInfoData) {
 
             // 第二行：大小、日期等
             Row(modifier = Modifier.fillMaxWidth()) {
-                InfoLabelValue(label = "文件大小:", value = info.size)
-                Spacer(modifier = Modifier.width(24.dp))
-                InfoLabelValue(label = "文件创建日期:", value = info.createdDate)
-                Spacer(modifier = Modifier.width(24.dp))
+                InfoLabelValue(label = "文件大小:", value = info.size, modifier = Modifier.width(140.dp))
+//                Spacer(modifier = Modifier.width(24.dp))
+                InfoLabelValue(label = "文件创建日期:", value = info.createdDate, modifier = Modifier.width(220.dp))
+//                Spacer(modifier = Modifier.width(24.dp))
                 InfoLabelValue(label = "添加日期:", value = info.addedDate)
             }
         }
@@ -174,23 +190,26 @@ fun VideoInfoSection(
     ) {
         Text(
             text = "视频信息",
-            color = DarkThemeColors.TextPrimary,
+            color = FluentTheme.colors.text.text.primary,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { /* 查看全部 */ }
+            modifier = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { /* 查看全部 */ }
         ) {
             Text(
                 text = "查看全部",
-                color = DarkThemeColors.TextSecondary,
+                color = FluentTheme.colors.text.text.secondary,
                 fontSize = 12.sp
             )
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = DarkThemeColors.TextSecondary,
+                tint = FluentTheme.colors.text.text.secondary,
                 modifier = Modifier.size(16.dp)
             )
         }
@@ -226,7 +245,7 @@ fun VideoInfoSection(
 fun SectionHeader(title: String) {
     Text(
         text = title,
-        color = DarkThemeColors.TextPrimary,
+        color = FluentTheme.colors.text.text.primary,
         fontWeight = FontWeight.Bold,
         fontSize = 14.sp,
         modifier = Modifier.padding(bottom = 8.dp)
@@ -238,13 +257,13 @@ fun InfoRow(label: String, value: String, isLongText: Boolean = false) {
     Row(verticalAlignment = if (isLongText) Alignment.Top else Alignment.CenterVertically) {
         Text(
             text = label,
-            color = DarkThemeColors.TextSecondary,
+            color = FluentTheme.colors.text.text.secondary,
             fontSize = 13.sp,
             modifier = Modifier.padding(end = 8.dp)
         )
         Text(
             text = value,
-            color = DarkThemeColors.TextPrimary,
+            color = FluentTheme.colors.text.text.primary,
             fontSize = 13.sp,
             lineHeight = 20.sp
         )
@@ -252,18 +271,18 @@ fun InfoRow(label: String, value: String, isLongText: Boolean = false) {
 }
 
 @Composable
-fun InfoLabelValue(label: String, value: String) {
-    Row {
+fun InfoLabelValue(label: String, value: String, modifier: Modifier = Modifier) {
+    Row(modifier = modifier) {
         Text(
             text = "$label ",
-            color = DarkThemeColors.TextSecondary,
+            color = FluentTheme.colors.text.text.secondary,
             fontSize = 13.sp
         )
         Text(
             text = value,
-            color = DarkThemeColors.TextPrimary,
+            color = FluentTheme.colors.text.text.primary,
             fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.Normal
         )
     }
 }
@@ -275,22 +294,22 @@ fun TrackItem(track: MediaTrackInfo) {
             Icon(
                 imageVector = track.icon,
                 contentDescription = null,
-                tint = DarkThemeColors.TextSecondary,
+                tint = FluentTheme.colors.text.text.secondary,
                 modifier = Modifier.size(18.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = track.type,
-                color = DarkThemeColors.TextSecondary,
+                color = FluentTheme.colors.text.text.secondary,
                 fontSize = 14.sp
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = track.details,
-            color = DarkThemeColors.TextPrimary,
+            color = FluentTheme.colors.text.text.primary,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Normal
         )
     }
 }

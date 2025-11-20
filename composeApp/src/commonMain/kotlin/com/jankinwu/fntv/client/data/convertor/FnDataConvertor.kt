@@ -172,17 +172,21 @@ object FnDataConvertor {
         isoTagData: IsoTagData,
         imdbId: String = ""
     ): MediaDetails {
-        val fileInfo = FileInfoData(
-            location = currentStreamData.fileInfo?.path ?: "",
-            size = formatFileSize(currentStreamData.fileInfo?.size ?: 0),
-            createdDate = formatTimestampToDateTime(currentStreamData.fileInfo?.updateTime ?: 0),
-            addedDate = formatTimestampToDateTime(currentStreamData.fileInfo?.updateTime ?: 0)
-        )
-        val videoTrack = MediaTrackInfo(
+        val fileInfo = if (currentStreamData.fileInfo != null) FileInfoData(
+            location = currentStreamData.fileInfo.path,
+            size = formatFileSize(currentStreamData.fileInfo.size),
+            createdDate = formatTimestampToDateTime(currentStreamData.fileInfo.updateTime),
+            addedDate = formatTimestampToDateTime(currentStreamData.fileInfo.updateTime)
+        ) else FileInfoData()
+        val videoTrack = if (currentStreamData.videoStream != null) MediaTrackInfo(
             type = "视频",
-            details = "${currentStreamData.videoStream?.resolutionType} ${currentStreamData.videoStream?.codecName?.uppercase()} ${formatBitrate(
-                currentStreamData.videoStream?.bps ?: 0
-            )} · ${currentStreamData.videoStream?.bitDepth} bit",
+            details = "${currentStreamData.videoStream.resolutionType} ${currentStreamData.videoStream.codecName.uppercase()} ${formatBitrate(
+                currentStreamData.videoStream.bps
+            )} · ${currentStreamData.videoStream.bitDepth} bit",
+            icon = Video
+        ) else MediaTrackInfo(
+            type = "视频",
+            details = "",
             icon = Video
         )
         val audioTrack = MediaTrackInfo(
@@ -190,11 +194,47 @@ object FnDataConvertor {
             details = "",
             icon = Audio
         )
+        currentStreamData.audioStreamList.firstOrNull().let {
+            val languageName = when (it?.language?.length) {
+                3 -> {
+                    isoTagData.iso6392Map[it.language]?.value
+                        ?: it.language
+                }
+
+                2 -> {
+                    isoTagData.iso6391Map[it.language]?.value
+                        ?: it.language
+                }
+
+                else -> {
+                    it?.language ?: ""
+                }
+            }
+            audioTrack.details = "$languageName ${it?.codecName?.uppercase()} ${it?.channelLayout} · ${it?.sampleRate} Hz"
+        }
         val subtitleTrack = MediaTrackInfo(
             type = "字幕",
             details = "",
             icon = Subtitle
         )
+        currentStreamData.subtitleStreamList.firstOrNull().let {
+            val languageName = when (it?.language?.length) {
+                3 -> {
+                    isoTagData.iso6392Map[it.language]?.value
+                        ?: it.language
+                }
+
+                2 -> {
+                    isoTagData.iso6391Map[it.language]?.value
+                        ?: it.language
+                }
+
+                else -> {
+                    it?.language ?: ""
+                }
+            }
+            subtitleTrack.details = "$languageName ${it?.codecName?.uppercase()}"
+        }
         return MediaDetails(fileInfo, videoTrack, audioTrack, subtitleTrack, "https://www.imdb.com/title/$imdbId/")
     }
 
