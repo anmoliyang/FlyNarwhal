@@ -123,8 +123,8 @@ val LocalFileInfo = staticCompositionLocalOf<FileInfo?> {
 }
 
 data class CurrentStreamData(
-    val fileInfo: FileInfo,
-    val videoStream: VideoStream,
+    val fileInfo: FileInfo?,
+    val videoStream: VideoStream?,
     val audioStreamList: List<AudioStream>,
     val subtitleStreamList: List<SubtitleStream>
 )
@@ -172,8 +172,8 @@ fun MovieDetailScreen(
     }
     val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
     val refreshState = LocalRefreshState.current
-    var currentMediaGuid by remember { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
-    var currentStreamData: CurrentStreamData? by remember { mutableStateOf(null) }
+    var currentMediaGuid by remember(guid) { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
+    var currentStreamData: CurrentStreamData? by remember(guid) { mutableStateOf(null) }
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
@@ -260,12 +260,14 @@ fun MovieDetailScreen(
     }
     LaunchedEffect(currentMediaGuid) {
         val streamData = streamData
-        if (currentMediaGuid.isNotEmpty() && streamData != null) {
-            val currentFileInfo = streamData.files.first {
+        if (currentMediaGuid.isNotBlank() && streamData != null) {
+            println("currentGuid: $currentMediaGuid, streamData: $streamData")
+            val currentFileInfo = streamData.files.firstOrNull {
                 it.guid == currentMediaGuid
             }
+
             val currentVideoStream = streamData.videoStreams
-                .first {
+                .firstOrNull {
                     it.mediaGuid == currentMediaGuid
                 }
             val currentAudioStreamList = streamData.audioStreams
@@ -315,26 +317,24 @@ fun MovieDetailScreen(
         val currentItem = itemData
         val currentStream = streamData
         val playInfoResponse = playInfoResponse
-        if (currentItem != null && currentStream != null && playInfoResponse != null) {
-            MovieDetailBody(
-                currentItem,
-                currentStream,
-                playInfoResponse,
-                guid,
-                currentStreamData,
-                castScrollRowItemList,
-                navigator,
-                onMediaGuidChanged = { currentMediaGuid = it }
-            )
-        }
+        MovieDetailBody(
+            currentItem,
+            currentStream,
+            playInfoResponse,
+            guid,
+            currentStreamData,
+            castScrollRowItemList,
+            navigator,
+            onMediaGuidChanged = { currentMediaGuid = it }
+        )
     }
 }
 
 @Composable
 fun MovieDetailBody(
-    itemData: ItemResponse,
-    streamData: StreamListResponse,
-    playInfoResponse: PlayInfoResponse,
+    itemData: ItemResponse?,
+    streamData: StreamListResponse?,
+    playInfoResponse: PlayInfoResponse?,
     guid: String,
     currentStreamData: CurrentStreamData?,
     castScrollRowItemList: List<ScrollRowItemData>,
@@ -363,29 +363,31 @@ fun MovieDetailBody(
                             .fillMaxWidth(),
                         contentAlignment = Alignment.TopCenter
                     ) {
-                        val backdropsImg =
-                            if (!itemData.backdrops.isNullOrBlank()) itemData.backdrops else itemData.posters
-                        // 背景图
-                        SubcomposeAsyncImage(
-                            model = ImageRequest.Builder(PlatformContext.INSTANCE)
-                                .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${backdropsImg}")
-                                .httpHeaders(store.fnImgHeaders)
-                                .crossfade(true)
-                                .size(Size.ORIGINAL)
-                                .build(),
-                            contentDescription = itemData.title,
-                            modifier = Modifier
-                                .height((windowHeight / 2.dp).dp)
-                                .fillMaxWidth(),
-                            contentScale = ContentScale.Crop,
-                            filterQuality = FilterQuality.High,
-                            loading = {
-                                ImgLoadingProgressRing()
-                            },
-                            error = {
-                                ImgLoadingError()
-                            },
-                        )
+                        if (itemData != null) {
+                            val backdropsImg =
+                                if (!itemData.backdrops.isNullOrBlank()) itemData.backdrops else itemData.posters
+                            // 背景图
+                            SubcomposeAsyncImage(
+                                model = ImageRequest.Builder(PlatformContext.INSTANCE)
+                                    .data("${AccountDataCache.getFnOfficialBaseUrl()}/v/api/v1/sys/img${backdropsImg}")
+                                    .httpHeaders(store.fnImgHeaders)
+                                    .crossfade(true)
+                                    .size(Size.ORIGINAL)
+                                    .build(),
+                                contentDescription = itemData.title,
+                                modifier = Modifier
+                                    .height((windowHeight / 2.dp).dp)
+                                    .fillMaxWidth(),
+                                contentScale = ContentScale.Crop,
+                                filterQuality = FilterQuality.High,
+                                loading = {
+                                    ImgLoadingProgressRing()
+                                },
+                                error = {
+                                    ImgLoadingError()
+                                },
+                            )
+                        }
                         // 渐变遮罩层
                         Box(
                             modifier = Modifier
@@ -402,7 +404,7 @@ fun MovieDetailBody(
                                 )
                         )
                         // 标题
-                        if (itemData.logos != null) {
+                        if (itemData != null && itemData.logos != null) {
                             var imageHeight by remember { mutableStateOf(90.dp) }
                             SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(PlatformContext.INSTANCE)
@@ -447,7 +449,7 @@ fun MovieDetailBody(
                                     .padding(start = 48.dp, end = 48.dp, bottom = 12.dp)
                             ) {
                                 Text(
-                                    text = itemData.title,
+                                    text = itemData?.title ?: "",
                                     style = LocalTypography.current.title,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White,
@@ -461,21 +463,23 @@ fun MovieDetailBody(
                     }
                 }
                 item {
-//                    val currentItem = itemData
-//                    val currentStream = streamData
-//                    val playInfoResponse = playInfoResponse
-                    MediaInfo(
-                        itemData,
-                        streamData,
-                        guid,
-                        toastManager,
-                        playInfoResponse,
-                        modifier = Modifier
-                            .padding(horizontal = 48.dp),
-                        onMediaGuidChanged = {
-                            onMediaGuidChanged(it)
-                        }
-                    )
+                    val currentItem = itemData
+                    val currentStream = streamData
+                    val playInfoResponse = playInfoResponse
+                    if (currentItem != null && currentStream != null && playInfoResponse != null) {
+                        MediaInfo(
+                            itemData,
+                            streamData,
+                            guid,
+                            toastManager,
+                            playInfoResponse,
+                            modifier = Modifier
+                                .padding(horizontal = 48.dp),
+                            onMediaGuidChanged = {
+                                onMediaGuidChanged(it)
+                            }
+                        )
+                    }
                 }
                 item {
                     CastScrollRow(
@@ -488,7 +492,7 @@ fun MovieDetailBody(
                 item {
                     currentStreamData?.let {
                         MediaInfo(modifier = Modifier.padding(horizontal = 48.dp), it,
-                            itemData.imdbId?: ""
+                            itemData?.imdbId ?: ""
                         )
                     }
                 }

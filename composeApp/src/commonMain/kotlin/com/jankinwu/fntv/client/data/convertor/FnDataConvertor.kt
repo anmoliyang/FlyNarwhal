@@ -173,14 +173,16 @@ object FnDataConvertor {
         imdbId: String = ""
     ): MediaDetails {
         val fileInfo = FileInfoData(
-            location = currentStreamData.fileInfo.path,
-            size = formatFileSize(currentStreamData.fileInfo.size),
-            createdDate = formatTimestampToDateTime(currentStreamData.fileInfo.updateTime),
-            addedDate = formatTimestampToDateTime(currentStreamData.fileInfo.updateTime)
+            location = currentStreamData.fileInfo?.path ?: "",
+            size = formatFileSize(currentStreamData.fileInfo?.size ?: 0),
+            createdDate = formatTimestampToDateTime(currentStreamData.fileInfo?.updateTime ?: 0),
+            addedDate = formatTimestampToDateTime(currentStreamData.fileInfo?.updateTime ?: 0)
         )
         val videoTrack = MediaTrackInfo(
             type = "视频",
-            details = "${currentStreamData.videoStream.resolutionType} ${currentStreamData.videoStream.codecName.uppercase()} ${formatBitrate(currentStreamData.videoStream.bps)} · ${currentStreamData.videoStream.bitDepth} bit",
+            details = "${currentStreamData.videoStream?.resolutionType} ${currentStreamData.videoStream?.codecName?.uppercase()} ${formatBitrate(
+                currentStreamData.videoStream?.bps ?: 0
+            )} · ${currentStreamData.videoStream?.bitDepth} bit",
             icon = Video
         )
         val audioTrack = MediaTrackInfo(

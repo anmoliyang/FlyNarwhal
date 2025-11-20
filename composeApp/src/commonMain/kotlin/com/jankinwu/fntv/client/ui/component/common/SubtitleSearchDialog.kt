@@ -70,7 +70,9 @@ fun SubtitleSearchDialog(
     val subtitleSearchViewModel: SubtitleSearchViewModel = koinViewModel()
     val subtitleSearchState by subtitleSearchViewModel.uiState.collectAsState()
     LaunchedEffect(language) {
-        subtitleSearchViewModel.searchSubtitles(language, mediaGuid)
+        if (mediaGuid.isNotBlank()) {
+            subtitleSearchViewModel.searchSubtitles(language, mediaGuid)
+        }
     }
 
     FluentDialog(visible, size) {
