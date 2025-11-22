@@ -394,12 +394,10 @@ fun MovieDetailBody(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight
-                                        ),
-                                        startY = (windowHeight / 4.dp).dp.value, // 开始渐变的位置
-                                        endY = (windowHeight / 2.dp).dp.value    // 结束渐变的位置
+                                        colorStops = arrayOf(
+                                            0.45f to Color.Transparent, // 从顶部 50% 的位置开始（对应你原来的 startY = H/4, 总高度 H/2）
+                                            1.0f to if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight // 到 100% 的位置结束
+                                        )
                                     )
                                 )
                         )
