@@ -139,6 +139,10 @@ val LocalIsoTagData = staticCompositionLocalOf<IsoTagData> {
     error("No IsoTagData provided")
 }
 
+val LocalToastManager = staticCompositionLocalOf<ToastManager> {
+    error("No ToastManager provided")
+}
+
 @Composable
 fun MovieDetailScreen(
     guid: String,
@@ -174,6 +178,8 @@ fun MovieDetailScreen(
     val refreshState = LocalRefreshState.current
     var currentMediaGuid by remember(guid) { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
     var currentStreamData: CurrentStreamData? by remember(guid) { mutableStateOf(null) }
+    val toastManager = rememberToastManager()
+
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
@@ -312,7 +318,8 @@ fun MovieDetailScreen(
         )
     }
     CompositionLocalProvider(
-        LocalIsoTagData provides isoTagData
+        LocalIsoTagData provides isoTagData,
+        LocalToastManager provides toastManager
     ) {
         val currentItem = itemData
         val currentStream = streamData
@@ -343,7 +350,7 @@ fun MovieDetailBody(
 ) {
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
-    val toastManager = rememberToastManager()
+    val toastManager = LocalToastManager.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -394,12 +401,10 @@ fun MovieDetailBody(
                                 .fillMaxSize()
                                 .background(
                                     brush = Brush.verticalGradient(
-                                        colors = listOf(
-                                            Color.Transparent,
-                                            if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight
-                                        ),
-                                        startY = (windowHeight / 4.dp).dp.value, // 开始渐变的位置
-                                        endY = (windowHeight / 2.dp).dp.value    // 结束渐变的位置
+                                        colorStops = arrayOf(
+                                            0.45f to Color.Transparent, // 从顶部 50% 的位置开始（对应你原来的 startY = H/4, 总高度 H/2）
+                                            1.0f to if (store.darkMode) Colors.BackgroundColorDark else Colors.BackgroundColorLight // 到 100% 的位置结束
+                                        )
                                     )
                                 )
                         )
@@ -463,15 +468,12 @@ fun MovieDetailBody(
                     }
                 }
                 item {
-                    val currentItem = itemData
-                    val currentStream = streamData
                     val playInfoResponse = playInfoResponse
-                    if (currentItem != null && currentStream != null && playInfoResponse != null) {
+                    if (itemData != null && streamData != null && playInfoResponse != null) {
                         MediaInfo(
                             itemData,
                             streamData,
                             guid,
-                            toastManager,
                             playInfoResponse,
                             modifier = Modifier
                                 .padding(horizontal = 48.dp),
@@ -493,7 +495,7 @@ fun MovieDetailBody(
                     currentStreamData?.let {
                         MediaInfo(
                             modifier = Modifier.padding(horizontal = 48.dp), it,
-                            itemData?.imdbId ?: ""
+                            itemData?.imdbId
                         )
                     }
                 }
@@ -526,7 +528,6 @@ fun MediaInfo(
     itemData: ItemResponse,
     streamData: StreamListResponse,
     guid: String,
-    toastManager: ToastManager,
     playInfoResponse: PlayInfoResponse,
     modifier: Modifier = Modifier,
     onMediaGuidChanged: (String) -> Unit = {},
@@ -647,7 +648,6 @@ fun MediaInfo(
                 itemData,
                 formatTotalDuration,
                 guid,
-                toastManager,
                 currentMediaGuid,
                 selectedVideoStreamIndex,
                 streamData,
@@ -752,7 +752,6 @@ fun MiddleControls(
     itemData: ItemResponse,
     formatTotalDuration: String,
     guid: String,
-    toastManager: ToastManager,
     mediaGuid: String,
     selectedVideoStreamIndex: Int,
     streamData: StreamListResponse,
@@ -780,6 +779,8 @@ fun MiddleControls(
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
     val isoTagData = LocalIsoTagData.current
+    val toastManager = LocalToastManager.current
+
     // 监听收藏操作结果并显示提示
     LaunchedEffect(favoriteUiState) {
         when (val state = favoriteUiState) {
@@ -1001,7 +1002,7 @@ fun MiddleControls(
                     currentSubtitleStream,
                     onSubtitleSelected,
                     guid,
-                    toastManager
+                    mediaGuid
                 )
                 AudioSelector(
                     currentAudioStreamList,
@@ -1097,7 +1098,7 @@ fun SubtitleSelector(
     currentSubtitleStream: SubtitleStream?,
     onSubtitleSelected: (String) -> Unit,
     guid: String = "",
-    toastManager: ToastManager
+    mediaGuid: String = "",
 ) {
     val isoTagData = LocalIsoTagData.current
     val iso6391Map = isoTagData.iso6391Map
@@ -1144,7 +1145,7 @@ fun SubtitleSelector(
             }
 
             null -> {
-                "未知字幕"
+                "无字幕"
             }
 
             else -> {
@@ -1177,13 +1178,10 @@ fun SubtitleSelector(
         selectedLanguage,
         onSubtitleSelected,
         true,
-        currentSubtitleStream?.mediaGuid ?: "",
+        mediaGuid,
         guid,
         selectedIndex,
         trimIdList,
-        onToastShow = { message, isSuccess ->
-            toastManager.showToast(message, isSuccess)
-        }
     )
 }
 

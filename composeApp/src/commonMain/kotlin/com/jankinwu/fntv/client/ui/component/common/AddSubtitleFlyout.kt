@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.LocalFrameWindowScope
@@ -163,7 +164,7 @@ fun AddSubtitleFlyout(
                 },
                 onClick = {
                     isFlyoutVisible = false
-                    val file = chooseFile(frameWindowScope, arrayOf("srt", "ass", "vtt"), "选择字幕文件")
+                    val file = chooseFile(frameWindowScope, arrayOf("ass", "srt", "vtt", "sub", "ssa"), "选择字幕文件")
                     handleFileSelection(file)
                 },
                 icon = {
@@ -197,7 +198,9 @@ fun FlyoutButton(
     isSelected: Boolean,
     onClick: () -> Unit,
     buttonText: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 12.dp,
+    verticalPadding: Dp = 4.dp
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
@@ -219,7 +222,7 @@ fun FlyoutButton(
                 onClick = onClick
             )
             .hoverable(interactionSource)
-            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .padding(horizontal = horizontalPadding, vertical = verticalPadding)
             .pointerHoverIcon(PointerIcon.Hand),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = spacedBy(4.dp, Alignment.CenterHorizontally)
