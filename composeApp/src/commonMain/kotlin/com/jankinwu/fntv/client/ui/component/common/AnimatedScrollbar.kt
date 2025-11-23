@@ -48,6 +48,7 @@ fun AnimatedScrollbarLazyColumn(
     content: LazyListScope.() -> Unit
 ) {
     var isHovered by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
@@ -72,7 +73,7 @@ fun AnimatedScrollbarLazyColumn(
         }
 
         AnimatedVisibility(
-            visible = listState.isScrollInProgress || isHovered,
+            visible = listState.isScrollInProgress || isHovered || isDragging,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.CenterEnd)
@@ -121,7 +122,11 @@ fun AnimatedScrollbarLazyColumn(
                             .offset(y = scrollbarOffset)
                             .background(Color.Gray, CircleShape)
                             .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
+                                detectDragGestures(
+                                    onDragStart = { isDragging = true },
+                                    onDragEnd = { isDragging = false },
+                                    onDragCancel = { isDragging = false }
+                                ) { change, dragAmount ->
                                     change.consume()
                                     coroutineScope.launch {
                                         if (scrollbarMaxOffset > 0) {
