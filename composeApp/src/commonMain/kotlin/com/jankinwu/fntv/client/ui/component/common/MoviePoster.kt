@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,18 +58,12 @@ import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.FnTvMediaType
-import com.jankinwu.fntv.client.icons.Delete
-import com.jankinwu.fntv.client.icons.Edit
 import com.jankinwu.fntv.client.icons.HeartFilled
-import com.jankinwu.fntv.client.icons.Lifted
+import com.jankinwu.fntv.client.ui.component.common.dialog.ManageVersionsDialog
 import com.jankinwu.fntv.client.ui.screen.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.screen.MovieDetailScreen
 import com.jankinwu.fntv.client.ui.screen.rememberPlayMediaFunction
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.component.FlyoutPlacement
-import io.github.composefluent.component.MenuFlyoutContainer
-import io.github.composefluent.component.MenuFlyoutItem
-import io.github.composefluent.component.MenuFlyoutSeparator
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
@@ -157,6 +150,7 @@ fun MoviePoster(
             .pointerHoverIcon(PointerIcon.Hand),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        var isManageVersionsDialogVisible by remember { mutableStateOf(false) }
 
         // 海报图片和覆盖层的容器
         Box(
@@ -380,7 +374,7 @@ fun MoviePoster(
                     .padding((8 * scaleFactor).dp)
                     .align(Alignment.BottomEnd)
             ) {
-                MediaMoreFlyout{
+                MediaMoreFlyout(onManageVersionsClick = { isManageVersionsDialogVisible = true }){
                     BottomIconButton(
                         icon = Icons.Regular.MoreHorizontal,
                         contentDescription = "more",
@@ -506,5 +500,15 @@ fun MoviePoster(
                 )
             }
         }
+
+        ManageVersionsDialog(
+            visible = isManageVersionsDialogVisible,
+            guid = guid,
+            itemTitle = title,
+            onDismiss = { isManageVersionsDialogVisible = false },
+            onDelete = { _, _ -> },
+            onUnmatchConfirmed = { _, _ -> },
+            onMatchToOther = { _, _ -> }
+        )
     }
 }
