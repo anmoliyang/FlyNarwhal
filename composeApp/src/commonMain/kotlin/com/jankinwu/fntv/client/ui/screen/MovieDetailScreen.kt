@@ -67,8 +67,8 @@ import coil3.request.crossfade
 import coil3.size.Precision
 import coil3.size.Size
 import com.jankinwu.fntv.client.data.constants.Colors
+import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
-import com.jankinwu.fntv.client.data.convertor.formatSeconds
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.model.response.FileInfo
@@ -247,7 +247,7 @@ fun MovieDetailScreen(
         val streamData = streamData
         if (currentMediaGuid.isNotBlank() && streamData != null) {
             println("currentGuid: $currentMediaGuid, streamData: $streamData")
-            val currentFileInfo = streamData.files.firstOrNull {
+            val currentFileInfo = streamData.files?.firstOrNull {
                 it.guid == currentMediaGuid
             }
 
@@ -524,8 +524,8 @@ fun MediaInfo(
     var currentFileInfo: FileInfo? by remember { mutableStateOf(null) }
     var totalDuration by remember { mutableIntStateOf(0) }
     val reminingDuration = totalDuration.minus(itemData.watchedTs)
-    val formatReminingDuration = formatSeconds(reminingDuration)
-    val formatTotalDuration = formatSeconds(totalDuration)
+    val formatReminingDuration = FnDataConvertor.formatSecondsToCNDateTime(reminingDuration)
+    val formatTotalDuration = FnDataConvertor.formatSecondsToCNDateTime(totalDuration)
 
     LaunchedEffect(guid, streamData, playInfoResponse) {
         currentMediaGuid = playInfoResponse.mediaGuid
@@ -578,7 +578,7 @@ fun MediaInfo(
 //            .sortedByDescending { it.index }
         currentSubtitleStreamList = listOf(noDisplayStream) + currentSubtitleStreamList
         currentSubtitleStreamGuid = mediaGuidSubTitleGuidMap[currentMediaGuid]
-        currentFileInfo = streamData.files.firstOrNull {
+        currentFileInfo = streamData.files?.firstOrNull {
             it.guid == currentMediaGuid
         }
         onMediaGuidChanged(currentMediaGuid)

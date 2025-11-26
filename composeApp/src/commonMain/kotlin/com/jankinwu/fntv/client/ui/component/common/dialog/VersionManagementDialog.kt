@@ -1,7 +1,6 @@
 package com.jankinwu.fntv.client.ui.component.common.dialog
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -311,7 +310,7 @@ private fun VersionItemRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = formatDuration(item.duration),
+                    text = FnDataConvertor.formatSecondsToCNDateTime(item.duration),
                     fontSize = 12.sp,
                     color = FluentTheme.colors.text.text.secondary
                 )
@@ -354,32 +353,3 @@ private fun VersionItemRow(
         )
     }
 }
-
-@Composable
-private fun TagChipText(text: String) {
-    val display = when {
-        text.endsWith("k", true) -> text.uppercase()
-        else -> text
-    }
-    Box(
-        modifier = Modifier
-            .border(1.dp, FluentTheme.colors.stroke.control.default, RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(text = display, fontSize = 12.sp)
-    }
-}
-
-private fun formatDuration(seconds: Int?): String {
-    if (seconds == null || seconds <= 0) return ""
-    val h = seconds / 3600
-    val m = (seconds % 3600) / 60
-    return if (m == 0) "${h}小时" else "${h}小时${m}分"
-}
-
-//private fun formatCreateTime(millis: Long?): String {
-//    if (millis == null || millis <= 0) return ""
-//    val instant = java.time.Instant.ofEpochMilli(millis)
-//    val dt = java.time.LocalDateTime.ofInstant(instant, java.time.ZoneId.systemDefault())
-//    return dt.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
-//}
