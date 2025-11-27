@@ -447,7 +447,7 @@ fun MovieDetailBody(
                 item {
                     val playInfoResponse = playInfoResponse
                     if (itemData != null && streamData != null && playInfoResponse != null) {
-                        MediaInfo(
+                        MediaIntroduction(
                             itemData,
                             streamData,
                             guid,
@@ -488,7 +488,7 @@ fun MovieDetailBody(
 }
 
 @Composable
-fun MediaInfo(
+fun MediaIntroduction(
     itemData: ItemResponse,
     streamData: StreamListResponse,
     guid: String,

@@ -80,6 +80,7 @@ import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
+import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.collections.plus
 
@@ -187,7 +188,7 @@ fun TvSeasonDetailScreen(
         LocalIsoTagData provides isoTagData,
         LocalToastManager provides toastManager
     ) {
-        TvDetailBody(
+        TvSeasonDetailBody(
             itemData = itemData,
             playInfoResponse = playInfoResponse,
             guid = guid,
@@ -199,7 +200,7 @@ fun TvSeasonDetailScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun TvDetailBody(
+fun TvSeasonDetailBody(
     itemData: ItemResponse?,
     playInfoResponse: PlayInfoResponse?,
     guid: String,
@@ -211,6 +212,8 @@ fun TvDetailBody(
     val toastManager = LocalToastManager.current
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     val watchedUiState by watchedViewModel.uiState.collectAsState()
+    val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
+    val favoriteUiState by favoriteViewModel.uiState.collectAsState()
     var pendingCallbacks by remember { mutableStateOf<Map<String, (Boolean) -> Unit>>(emptyMap()) }
     val seasonListViewModel: SeasonListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
@@ -245,6 +248,29 @@ fun TvDetailBody(
         if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
             kotlinx.coroutines.delay(2000) // 2秒后清除状态
             watchedViewModel.clearError()
+        }
+    }
+
+    // 监听收藏操作结果并显示提示
+    LaunchedEffect(favoriteUiState) {
+        when (val state = favoriteUiState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data.message, state.data.success)
+                itemViewModel.loadData(guid)
+            }
+
+            is UiState.Error -> {
+                // 显示错误提示
+                toastManager.showToast("操作失败，${state.message}", false)
+            }
+
+            else -> {}
+        }
+
+        // 清除状态
+        if (favoriteUiState is UiState.Success || favoriteUiState is UiState.Error) {
+            delay(2000) // 2秒后清除状态
+            favoriteViewModel.clearError()
         }
     }
 
@@ -480,12 +506,9 @@ private fun TvMiddleControls(
 //        currentAudioGuid = currentAudioStream?.guid,
 //        currentSubtitleGuid = currentSubtitleStream?.guid
     )
-    val isoTagData = LocalIsoTagData.current
     val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
-    val favoriteUiState by favoriteViewModel.uiState.collectAsState()
     var isFavorite by remember(itemData.isFavorite == 1) { mutableStateOf(itemData.isFavorite == 1) }
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
-    val watchedUiState by watchedViewModel.uiState.collectAsState()
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
 
     Row(
