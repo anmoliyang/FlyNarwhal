@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -660,11 +661,11 @@ fun MediaSourceBoxes(
     LaunchedEffect(selectedVideoStreamIndex) {
         selectedTagIndex = selectedVideoStreamIndex
     }
-    Row(
+    FlowRow(
         modifier = modifier
             .padding(top = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
         val qualityTags = streamData.videoStreams.map {
             val colorRangeType = when (it.colorRangeType) {
@@ -751,7 +752,6 @@ fun MiddleControls(
     var isWatched by remember(itemData.isWatched == 1) { mutableStateOf(itemData.isWatched == 1) }
     val streamListViewModel: StreamListViewModel = koinViewModel()
     val itemViewModel: ItemViewModel = koinViewModel()
-    val isoTagData = LocalIsoTagData.current
     val toastManager = LocalToastManager.current
 
     // 监听收藏操作结果并显示提示
@@ -952,7 +952,7 @@ fun SubtitleSelector(
     val iso6391Map = isoTagData.iso6391Map
     val iso6392Map = isoTagData.iso6392Map
 
-    val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, currentSubtitleStream) {
+    val selectorOptions by remember(currentSubtitleStreamList, iso6392Map, iso6391Map, currentSubtitleStream) {
         derivedStateOf {
             currentSubtitleStreamList.map { subtitleStream ->
                 val languageTitle: String =FnDataConvertor.getLanguageName(
