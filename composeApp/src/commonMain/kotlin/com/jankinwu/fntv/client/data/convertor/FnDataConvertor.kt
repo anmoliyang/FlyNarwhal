@@ -107,6 +107,7 @@ fun convertPlayDetailToScrollRowItemData(item: PlayDetailResponse): ScrollRowIte
         guid = item.guid,
         status = item.status,
         type = item.type,
+        parentGuid = item.parentGuid,
     )
 }
 

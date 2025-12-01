@@ -161,7 +161,6 @@ fun TvDetailScreen(
         println("seasonListState: $seasonListState")
         if (seasonListState is UiState.Success) {
             seasonList = (seasonListState as UiState.Success<List<SeasonListResponse>>).data
-            println("seasonList2: $seasonList")
         }
     }
 
