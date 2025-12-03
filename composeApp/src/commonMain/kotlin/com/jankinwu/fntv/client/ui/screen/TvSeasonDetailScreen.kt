@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,12 +46,17 @@ import coil3.request.crossfade
 import coil3.size.Size
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
+import com.jankinwu.fntv.client.data.convertor.convertPersonToScrollRowItemData
+import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
 import com.jankinwu.fntv.client.data.model.response.ItemResponse
+import com.jankinwu.fntv.client.data.model.response.PersonList
+import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.ui.component.common.BackButton
+import com.jankinwu.fntv.client.ui.component.common.CastScrollRow
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
@@ -58,9 +64,11 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
+import com.jankinwu.fntv.client.ui.component.detail.EpisodesScrollRow
 import com.jankinwu.fntv.client.ui.component.detail.ImdbLink
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalToastManager
@@ -68,18 +76,16 @@ import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
+import com.jankinwu.fntv.client.viewmodel.PersonListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
-import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
-import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Checkmark
 import io.github.composefluent.icons.regular.MoreHorizontal
-import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -99,7 +105,10 @@ fun TvSeasonDetailScreen(
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList: List<EpisodeListResponse> by remember { mutableStateOf(emptyList()) }
-
+    val personListViewModel: PersonListViewModel = koinViewModel()
+    val personListState by personListViewModel.uiState.collectAsState()
+    var personList: List<PersonList> by remember { mutableStateOf(emptyList()) }
+    var castScrollRowItemList by remember { mutableStateOf(emptyList<ScrollRowItemData>()) }
     val tagViewModel: TagViewModel = koinViewModel<TagViewModel>()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
     val iso6391State by tagViewModel.iso6391State.collectAsState()
@@ -116,11 +125,21 @@ fun TvSeasonDetailScreen(
     val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
     val refreshState = LocalRefreshState.current
     val toastManager = rememberToastManager()
-
+    val playerManager = LocalPlayerManager.current
+    var isFirstLoad by remember(guid) { mutableStateOf(true) }
+    // 当从播放器返回时刷新最近播放列表
+    LaunchedEffect(playerManager.playerState) {
+        if (!playerManager.playerState.isVisible && !isFirstLoad) {
+            itemViewModel.loadData(guid)
+            playInfoViewModel.loadData(guid)
+            episodeListViewModel.loadData(guid)
+        }
+    }
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         playInfoViewModel.loadData(guid)
         episodeListViewModel.loadData(guid)
+        personListViewModel.loadData(guid)
 
         if (iso6392State !is UiState.Success) {
             tagViewModel.loadIso6392Tags()
@@ -131,6 +150,7 @@ fun TvSeasonDetailScreen(
         if (iso3166State !is UiState.Success) {
             tagViewModel.loadIso3166Tags()
         }
+        isFirstLoad = false
     }
     // 监听刷新状态变化
     LaunchedEffect(refreshState.refreshKey) {
@@ -143,6 +163,7 @@ fun TvSeasonDetailScreen(
             tagViewModel.loadIso6392Tags()
             tagViewModel.loadIso3166Tags()
             genresViewModel.loadGenres()
+            personListViewModel.loadData(guid)
         }
     }
     LaunchedEffect(itemUiState) {
@@ -159,6 +180,36 @@ fun TvSeasonDetailScreen(
         println("seasonListState: $episodeListState")
         if (episodeListState is UiState.Success) {
             episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+        }
+    }
+
+    LaunchedEffect(playInfoUiState) {
+        when (playInfoUiState) {
+            is UiState.Success -> {
+                playInfoResponse = (playInfoUiState as UiState.Success<PlayInfoResponse>).data
+            }
+
+            is UiState.Error -> {
+                println("message: ${(playInfoUiState as UiState.Error).message}")
+            }
+
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(personListState) {
+        when (personListState) {
+            is UiState.Success -> {
+                personList = (personListState as UiState.Success<PersonListResponse>).data.list
+                castScrollRowItemList = convertPersonToScrollRowItemData(personList)
+                print("scrollRowItemList: $castScrollRowItemList")
+            }
+
+            is UiState.Error -> {
+                println("message: ${(personListState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
@@ -190,6 +241,7 @@ fun TvSeasonDetailScreen(
             playInfoResponse = playInfoResponse,
             guid = guid,
             episodeList = episodeList,
+            castScrollRowItemList,
             navigator = navigator
         )
     }
@@ -201,16 +253,14 @@ fun TvEpisodeBody(
     playInfoResponse: PlayInfoResponse?,
     guid: String,
     episodeList: List<EpisodeListResponse>,
+    castScrollRowItemList: List<ScrollRowItemData>,
     navigator: ComponentNavigator,
 ) {
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
-    val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
-    val watchedUiState by watchedViewModel.uiState.collectAsState()
     var isWatched by remember(itemData?.isWatched == 1) { mutableStateOf(itemData?.isWatched == 1) }
-    val streamListViewModel: StreamListViewModel = koinViewModel()
-    val itemViewModel: ItemViewModel = koinViewModel()
+
 
     val imageRequest = remember(itemData) {
         if (itemData != null && itemData.posters.isNotBlank()) {
@@ -228,29 +278,6 @@ fun TvEpisodeBody(
     val painter = rememberAsyncImagePainter(model = imageRequest)
     val painterState by painter.state.collectAsState()
 
-    // 监听已观看操作结果并显示提示
-    LaunchedEffect(watchedUiState) {
-        when (val state = watchedUiState) {
-            is UiState.Success -> {
-                streamListViewModel.loadData(guid)
-                itemViewModel.loadData(guid)
-                toastManager.showToast(state.data.message, state.data.success)
-            }
-
-            is UiState.Error -> {
-                // 显示错误提示
-                toastManager.showToast("操作失败，${state.message}", false)
-            }
-
-            else -> {}
-        }
-
-        // 清除状态
-        if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
-            delay(2000) // 2秒后清除状态
-            watchedViewModel.clearError()
-        }
-    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -399,11 +426,29 @@ fun TvEpisodeBody(
                                     // Description
                                     MediaDescription(
                                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                        itemData = itemData
+                                        itemData = itemData,
+                                        isSeason =  true
                                     )
                                 }
                             }
                         }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+
+                item {
+                    EpisodesScrollRow(episodes = episodeList, navigator)
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+                if (castScrollRowItemList.isNotEmpty()) {
+                    item {
+//                        Spacer(modifier = Modifier.height(24.dp))
+                        CastScrollRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            castScrollRowItemList
+                        )
                     }
                 }
 

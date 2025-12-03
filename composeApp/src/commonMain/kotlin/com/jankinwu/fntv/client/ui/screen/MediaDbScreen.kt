@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
-import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemData
+import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemDataList
 import com.jankinwu.fntv.client.data.model.request.Tags
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.enums.FnTvMediaType
@@ -506,7 +506,7 @@ fun MediaDbScreen(
                                 verticalArrangement = Arrangement.spacedBy(spacing)
                             ) {
                                 items(mediaItems) { mediaItem ->
-                                    val itemData = convertToScrollRowItemData(mediaItem)
+                                    val itemData = convertToScrollRowItemDataList(mediaItem)
                                     Box(
                                         modifier = Modifier
                                             .height(posterHeight)

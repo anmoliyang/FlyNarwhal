@@ -1,14 +1,19 @@
 package com.jankinwu.fntv.client.ui.component.detail
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LocalTextStyle
@@ -218,5 +223,77 @@ fun ImdbLink(
                 LocalTextStyle.current
             }
         )
+    }
+}
+
+@Composable
+fun ResolutionTag(
+    resolutions: List<String>,
+    modifier: Modifier = Modifier
+) {
+    resolutions.let {
+        Row(
+            modifier = modifier
+//                .align(Alignment.BottomEnd)
+                .padding(end = 6.dp, bottom = 6.dp)
+            ,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(
+                space = 4.dp,
+                alignment = Alignment.End
+            )
+        ) {
+
+            for ((_, resolution) in it.withIndex()) {
+                if (resolution.endsWith("k")) {
+                    Box(
+                        modifier = Modifier
+//                            .alpha(if (isPosterHovered) 0f else 1f)
+                            //                                .align(Alignment.BottomEnd)
+                            //                                .padding((8 * scaleFactor).dp)
+                            .background(
+                                color = Color.White.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(3.dp)
+                            )
+                            .padding(
+                                horizontal = 6.dp,
+                                vertical = 1.dp
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = resolution.uppercase(),
+                            color = Color.Black.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+//                            .alpha(if (isPosterHovered) 0f else 1f)
+                            //                                .align(Alignment.BottomEnd)
+                            //                                .padding((8 * scaleFactor).dp)
+                            .border(
+                                2.dp,
+                                Color.White.copy(alpha = 0.6f),
+                                RoundedCornerShape(3.dp)
+                            )
+                            .padding(
+                                horizontal = 3.dp,
+                                vertical = 1.dp
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = resolution.dropLast(1),
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
     }
 }
