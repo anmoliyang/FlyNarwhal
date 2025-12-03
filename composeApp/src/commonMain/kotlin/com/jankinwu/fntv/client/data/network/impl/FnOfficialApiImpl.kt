@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.data.network.impl
 
+import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -250,8 +251,8 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 throw IllegalArgumentException("飞牛官方URL未配置")
             }
             val authx = genAuthx(url, parameters)
-            println("GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters")
-
+//            println("GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters")
+            Logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters" }
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
                 parameters?.forEach { (key, value) ->
@@ -262,11 +263,13 @@ class FnOfficialApiImpl() : FnOfficialApi {
                 block?.invoke(this)
             }
             val responseString = response.bodyAsText()
-            println("url: $url Get response content: $responseString")
-
+//            println("url: $url Get response content: $responseString")
+            Logger.i { "url: $url Get response content: $responseString" }
+//            logger.info { "url: $url Get response content: $responseString" }
             val body = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (body.code != 0) {
-                println("请求异常: ${body.msg}, url: $url")
+//                println("请求异常: ${body.msg}, url: $url")
+                Logger.e { "请求异常: ${body.msg}, url: $url" }
                 throw Exception("请求失败, url: $url, code: ${body.code}, msg: ${body.msg}")
             }
 
@@ -294,8 +297,8 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-            println("POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
-
+//            println("POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
+            Logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body" }
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                 header("Authx", authx)
@@ -306,12 +309,13 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val responseString = response.bodyAsText()
-            println("url: $url POST response content: $responseString")
-
+//            println("url: $url POST response content: $responseString")
+            Logger.i { "url: $url POST response content: $responseString" }
             // 解析为对象
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
-                println("请求异常: ${responseBody.msg}, url: $url, request body: $body")
+//                println("请求异常: ${responseBody.msg}, url: $url, request body: $body")
+                Logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
                 throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }
 
@@ -437,14 +441,15 @@ class FnOfficialApiImpl() : FnOfficialApi {
             val authx = genAuthx(url, data = body)
             println("DELETE request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body")
 
-            val response = fnOfficialClient.delete("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
-                header(HttpHeaders.ContentType, "application/json; charset=utf-8")
-                header("Authx", authx)
-                if (body != null) {
-                    setBody(body)
+            val response =
+                fnOfficialClient.delete("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
+                    header(HttpHeaders.ContentType, "application/json; charset=utf-8")
+                    header("Authx", authx)
+                    if (body != null) {
+                        setBody(body)
+                    }
+                    block?.invoke(this)
                 }
-                block?.invoke(this)
-            }
 
             val responseString = response.bodyAsText()
             println("url: $url Delete response content: $responseString")

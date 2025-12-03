@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.convertor.convertMediaDbListResponseToScrollRowItem
 import com.jankinwu.fntv.client.data.convertor.convertPlayDetailToScrollRowItemData
@@ -443,6 +444,7 @@ fun FntvProxy(toastManager: ToastManager) {
                 }
 
                 is UiState.Error -> {
+                    Logger.e { "代理设置失败, cause: ${(proxyUiState as UiState.Error).message}" }
                     toastManager.showToast("代理设置失败, cause: ${(proxyUiState as UiState.Error).message}")
                 }
 

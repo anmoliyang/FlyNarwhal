@@ -102,6 +102,7 @@ kotlin {
             implementation(libs.haze)
             implementation(libs.haze.materials)
             implementation(libs.kotlinx.datetime)
+            implementation(libs.kermit)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
