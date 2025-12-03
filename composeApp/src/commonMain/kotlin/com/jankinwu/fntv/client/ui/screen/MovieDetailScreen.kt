@@ -97,6 +97,7 @@ import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
+import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.ui.providable.LocalToastManager
@@ -157,7 +158,16 @@ fun MovieDetailScreen(
     var currentMediaGuid by remember(guid) { mutableStateOf(playInfoResponse?.mediaGuid ?: "") }
     var currentStreamData: CurrentStreamData? by remember(guid) { mutableStateOf(null) }
     val toastManager = rememberToastManager()
-
+    val playerManager = LocalPlayerManager.current
+    var isFirstLoad by remember(guid) { mutableStateOf(true) }
+    // 当从播放器返回时刷新最近播放列表
+    LaunchedEffect(playerManager.playerState) {
+        if (!playerManager.playerState.isVisible && !isFirstLoad) {
+            itemViewModel.loadData(guid)
+            playInfoViewModel.loadData(guid)
+            streamListViewModel.loadData(guid)
+        }
+    }
     LaunchedEffect(Unit) {
         itemViewModel.loadData(guid)
         streamListViewModel.loadData(guid)
@@ -1005,7 +1015,7 @@ fun Separator() {
 }
 
 @Composable
-fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
+fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?, isSeason: Boolean? = null) {
     val processedOverview = itemData?.overview?.replace("\n\n", "\n") ?: ""
     Text(
         text = processedOverview,
@@ -1013,7 +1023,9 @@ fun MediaDescription(modifier: Modifier = Modifier, itemData: ItemResponse?) {
         color = FluentTheme.colors.text.text.secondary,
         fontSize = 15.sp,
         lineHeight = 20.sp,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
+        maxLines = if (isSeason == true) 2 else 5,
+        overflow = if (isSeason == true) TextOverflow.Ellipsis else TextOverflow.Visible
     )
 }
 

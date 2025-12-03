@@ -23,12 +23,14 @@ import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.convertor.convertMediaDbListResponseToScrollRowItem
 import com.jankinwu.fntv.client.data.convertor.convertPlayDetailToScrollRowItemData
-import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemData
+import com.jankinwu.fntv.client.data.convertor.convertToScrollRowItemDataList
 import com.jankinwu.fntv.client.data.model.ScrollRowItemData
 import com.jankinwu.fntv.client.data.model.request.Tags
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.enums.FnTvMediaType
+import com.jankinwu.fntv.client.manager.HandleFavoriteResult
+import com.jankinwu.fntv.client.manager.HandleWatchedResult
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.MediaLibCardRow
 import com.jankinwu.fntv.client.ui.component.common.MediaLibGallery
@@ -131,67 +133,87 @@ fun HomePageScreen(navigator: ComponentNavigator) {
         }
     }
 
+    HandleFavoriteResult(
+        favoriteUiState = favoriteUiState,
+        toastManager = toastManager,
+        pendingCallbacks = pendingCallbacks,
+        onPendingCallbackHandled = { id ->
+            pendingCallbacks = pendingCallbacks - id
+        },
+        clearError = { favoriteViewModel.clearError() }
+    )
+
+    HandleWatchedResult(
+        watchedUiState = watchedUiState,
+        toastManager = toastManager,
+        pendingCallbacks = pendingCallbacks,
+        onPendingCallbackHandled = { id ->
+            pendingCallbacks = pendingCallbacks - id
+        },
+        clearError = { watchedViewModel.clearError() }
+    )
+
     // 监听收藏操作结果并显示提示
-    LaunchedEffect(favoriteUiState) {
-        when (val state = favoriteUiState) {
-            is UiState.Success -> {
-                toastManager.showToast(state.data.message, state.data.success)
-                // 调用对应的回调函数
-                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
-                // 从 pendingCallbacks 中移除已处理的回调
-                pendingCallbacks = pendingCallbacks - state.data.guid
-            }
-
-            is UiState.Error -> {
-                // 显示错误提示
-                toastManager.showToast("操作失败，${state.message}", false)
-                state.operationId?.let {
-                    pendingCallbacks[state.operationId]?.invoke(false)
-                    // 从 pendingCallbacks 中移除已处理的回调
-                    pendingCallbacks = pendingCallbacks - state.operationId
-                }
-            }
-
-            else -> {}
-        }
-
-        // 清除状态
-        if (favoriteUiState is UiState.Success || favoriteUiState is UiState.Error) {
-            kotlinx.coroutines.delay(2000) // 2秒后清除状态
-            favoriteViewModel.clearError()
-        }
-    }
-
-    // 监听已观看操作结果并显示提示
-    LaunchedEffect(watchedUiState) {
-        when (val state = watchedUiState) {
-            is UiState.Success -> {
-                toastManager.showToast(state.data.message, state.data.success)
-                // 调用对应的回调函数
-                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
-                // 从 pendingCallbacks 中移除已处理的回调
-                pendingCallbacks = pendingCallbacks - state.data.guid
-            }
-
-            is UiState.Error -> {
-                // 显示错误提示
-                toastManager.showToast("操作失败，${state.message}", false)
-                state.operationId?.let {
-                    pendingCallbacks[state.operationId]?.invoke(false)
-                    // 从 pendingCallbacks 中移除已处理的回调
-                    pendingCallbacks = pendingCallbacks - state.operationId
-                }
-            }
-
-            else -> {}
-        }
-
-        // 清除状态
-        if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
-            kotlinx.coroutines.delay(2000) // 2秒后清除状态
-            watchedViewModel.clearError()
-        }
-    }
+//    LaunchedEffect(favoriteUiState) {
+//        when (val state = favoriteUiState) {
+//            is UiState.Success -> {
+//                toastManager.showToast(state.data.message, state.data.success)
+//                // 调用对应的回调函数
+//                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
+//                // 从 pendingCallbacks 中移除已处理的回调
+//                pendingCallbacks = pendingCallbacks - state.data.guid
+//            }
+//
+//            is UiState.Error -> {
+//                // 显示错误提示
+//                toastManager.showToast("操作失败，${state.message}", false)
+//                state.operationId?.let {
+//                    pendingCallbacks[state.operationId]?.invoke(false)
+//                    // 从 pendingCallbacks 中移除已处理的回调
+//                    pendingCallbacks = pendingCallbacks - state.operationId
+//                }
+//            }
+//
+//            else -> {}
+//        }
+//
+//        // 清除状态
+//        if (favoriteUiState is UiState.Success || favoriteUiState is UiState.Error) {
+//            kotlinx.coroutines.delay(2000) // 2秒后清除状态
+//            favoriteViewModel.clearError()
+//        }
+//    }
+//
+//    // 监听已观看操作结果并显示提示
+//    LaunchedEffect(watchedUiState) {
+//        when (val state = watchedUiState) {
+//            is UiState.Success -> {
+//                toastManager.showToast(state.data.message, state.data.success)
+//                // 调用对应的回调函数
+//                pendingCallbacks[state.data.guid]?.invoke(state.data.success)
+//                // 从 pendingCallbacks 中移除已处理的回调
+//                pendingCallbacks = pendingCallbacks - state.data.guid
+//            }
+//
+//            is UiState.Error -> {
+//                // 显示错误提示
+//                toastManager.showToast("操作失败，${state.message}", false)
+//                state.operationId?.let {
+//                    pendingCallbacks[state.operationId]?.invoke(false)
+//                    // 从 pendingCallbacks 中移除已处理的回调
+//                    pendingCallbacks = pendingCallbacks - state.operationId
+//                }
+//            }
+//
+//            else -> {}
+//        }
+//
+//        // 清除状态
+//        if (watchedUiState is UiState.Success || watchedUiState is UiState.Error) {
+//            kotlinx.coroutines.delay(2000) // 2秒后清除状态
+//            watchedViewModel.clearError()
+//        }
+//    }
     CompositionLocalProvider(
         LocalUserInfo provides currentUserInfo,
         LocalToastManager provides toastManager
@@ -337,7 +359,7 @@ fun HomePageScreen(navigator: ComponentNavigator) {
                                     val mediaDataList = when (val listState = itemListUiState) {
                                         is UiState.Success -> {
                                             listState.data.list.map { item ->
-                                                convertToScrollRowItemData(item)
+                                                convertToScrollRowItemDataList(item)
                                             }
                                         }
 
