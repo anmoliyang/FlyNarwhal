@@ -448,7 +448,6 @@ class FnOfficialApiImpl() : FnOfficialApi {
             // 解析为对象
             val responseBody = mapper.readValue<FnBaseResponse<T>>(responseString)
             if (responseBody.code != 0) {
-//                println("请求异常: ${responseBody.msg}, url: $url, request body: $body")
                 Logger.e { "请求异常: ${responseBody.msg}, url: $url, request body: $body" }
                 throw Exception("请求失败, url: $url, code: ${responseBody.code}, msg: ${responseBody.msg}")
             }

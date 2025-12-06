@@ -96,7 +96,6 @@ object ProxyManager {
                 }
             } catch (e: Exception) {
                 Logger.e("ProxyManager: Failed to extract proxy: ${e.message}", e)
-                e.printStackTrace()
             }
         }
 
@@ -152,7 +151,6 @@ object ProxyManager {
 
         } catch (e: Exception) {
             Logger.e("ProxyManager: Failed to start proxy: ${e.message}", e)
-            e.printStackTrace()
         }
     }
 
@@ -164,7 +162,7 @@ object ProxyManager {
                     Logger.i("ProxyManager: Proxy stopped")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Logger.e("ProxyManager: Failed to stop the proxy, case: ", e)
             } finally {
                 proxyProcess = null
             }

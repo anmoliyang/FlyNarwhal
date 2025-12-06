@@ -206,7 +206,7 @@ fun TvSeasonDetailScreen(
             is UiState.Success -> {
                 personList = (personListState as UiState.Success<PersonListResponse>).data.list
                 castScrollRowItemList = convertPersonToScrollRowItemData(personList)
-                print("scrollRowItemList: $castScrollRowItemList")
+                Logger.i("scrollRowItemList: $castScrollRowItemList")
             }
 
             is UiState.Error -> {
