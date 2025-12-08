@@ -137,6 +137,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb, TargetFormat.Exe, TargetFormat.Rpm)
             // 使用英文作为包名，避免Windows下打包乱码和路径问题
+            // Use English package name to avoid garbled text on Windows
             packageName = "FnMedia"
             packageVersion = "1.0.0"
             description = "飞牛影视"
