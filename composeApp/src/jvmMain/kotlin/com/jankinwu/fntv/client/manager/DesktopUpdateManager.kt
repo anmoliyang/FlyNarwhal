@@ -68,10 +68,15 @@ class DesktopUpdateManager : UpdateManager {
 
                 if (compareVersions(remoteVersion, currentVersion) > 0) {
                     val arch = getSystemArch()
-                    // Naming convention: FnMedia_Setup_{Arch}_{Version}.{Ext}
+                    val osName = getSystemOS()
+                    // Naming convention: FnMedia_Setup_{System}_{Arch}_{Version}.{Ext}
                     val asset = release.assets.find { 
+                        it.name.contains(osName, ignoreCase = true) &&
                         it.name.contains(arch, ignoreCase = true) && 
-                        it.name.endsWith(".exe", ignoreCase = true) 
+                        (it.name.endsWith(".exe", ignoreCase = true) || 
+                         it.name.endsWith(".dmg", ignoreCase = true) || 
+                         it.name.endsWith(".deb", ignoreCase = true) ||
+                         it.name.endsWith(".rpm", ignoreCase = true))
                     }
                     
                     if (asset != null) {
@@ -92,7 +97,8 @@ class DesktopUpdateManager : UpdateManager {
                              _status.value = UpdateStatus.Available(updateInfo)
                          }
                     } else {
-                        _status.value = UpdateStatus.Error("No compatible asset found for arch: $arch")
+//                        _status.value = UpdateStatus.Error("找不到匹配的更新文件: ${osName}_$arch")
+                        _status.value = UpdateStatus.UpToDate
                     }
                 } else {
                     _status.value = UpdateStatus.UpToDate
@@ -204,9 +210,19 @@ class DesktopUpdateManager : UpdateManager {
     private fun getSystemArch(): String {
         val osArch = System.getProperty("os.arch").lowercase(Locale.getDefault())
         return when {
-            osArch.contains("aarch64") || osArch.contains("arm64") -> "arm64"
+            osArch.contains("aarch64") || osArch.contains("arm64") -> "aarch64"
             osArch.contains("amd64") || osArch.contains("x86_64") -> "amd64"
             else -> "x86" 
+        }
+    }
+
+    private fun getSystemOS(): String {
+        val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
+        return when {
+            osName.contains("win") -> "Windows"
+            osName.contains("mac") -> "MacOS"
+            osName.contains("nix") || osName.contains("nux") -> "Linux"
+            else -> "Unknown"
         }
     }
 }
