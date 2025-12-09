@@ -12,6 +12,9 @@ object ProxyManager {
         if (proxyProcess != null && proxyProcess!!.isAlive) {
             return
         }
+        
+        // Try to kill existing proxy process to avoid port conflict (especially in dev mode)
+        killExistingProxy()
 
         val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
         val osArch = System.getProperty("os.arch").lowercase(Locale.getDefault())
@@ -196,6 +199,20 @@ object ProxyManager {
                 if (osArch.contains("aarch64") || osArch.contains("arm")) "linux_aarch64" else "linux_amd64"
             }
             else -> null
+        }
+    }
+
+    private fun killExistingProxy() {
+        try {
+            val osName = System.getProperty("os.name").lowercase(Locale.getDefault())
+            if (osName.contains("win")) {
+                Runtime.getRuntime().exec("taskkill /F /IM fntv-proxy.exe").waitFor()
+            } else {
+                Runtime.getRuntime().exec(arrayOf("pkill", "-f", "fntv-proxy")).waitFor()
+            }
+        } catch (e: Exception) {
+            // Ignore errors (e.g. process not found)
+            Logger.w("ProxyManager: Failed to kill existing proxy: ${e.message}")
         }
     }
 }

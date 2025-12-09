@@ -19,3 +19,4 @@ captures
 /.vscode/
 **.ini
 /installer/**.exe
+**/logs/

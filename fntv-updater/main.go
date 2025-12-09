@@ -18,22 +18,93 @@ import (
 // Constants
 const (
 	AppName = "FnMedia.exe"
-	
+
 	// MessageBox constants
-	MB_OK                = 0x00000000
-	MB_ICONINFORMATION   = 0x00000040
-	MB_ICONWARNING       = 0x00000030
-	MB_ICONERROR         = 0x00000010
-	MB_ICONQUESTION      = 0x00000020
-	MB_SYSTEMMODAL       = 0x00001000
+	MB_OK              = 0x00000000
+	MB_ICONINFORMATION = 0x00000040
+	MB_ICONWARNING     = 0x00000030
+	MB_ICONERROR       = 0x00000010
+	MB_ICONQUESTION    = 0x00000020
+	MB_SYSTEMMODAL     = 0x00001000
 )
+
+var logFile *os.File
+
+func initLog() {
+	logDir := "logs"
+	if _, err := os.Stat(logDir); os.IsNotExist(err) {
+		os.Mkdir(logDir, 0755)
+	}
+
+	cleanOldLogs(logDir)
+
+	date := time.Now().Format("2006-01-02")
+	logFilePath := filepath.Join(logDir, fmt.Sprintf("updater-%s.log", date))
+
+	f, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Failed to open log file:", err)
+		return
+	}
+	logFile = f
+}
+
+func cleanOldLogs(logDir string) {
+	files, err := os.ReadDir(logDir)
+	if err != nil {
+		return
+	}
+
+	today := time.Now()
+	// Keep today, yesterday, day before yesterday.
+	// So delete if difference >= 3 days
+	retentionDays := 3.0
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		name := file.Name()
+		if strings.HasPrefix(name, "updater-") && strings.HasSuffix(name, ".log") {
+			datePart := strings.TrimSuffix(strings.TrimPrefix(name, "updater-"), ".log")
+			fileDate, err := time.Parse("2006-01-02", datePart)
+			if err != nil {
+				continue
+			}
+
+			// Calculate days difference
+			// We use Truncate to compare dates only, ignoring time
+			d1 := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+			d2 := time.Date(fileDate.Year(), fileDate.Month(), fileDate.Day(), 0, 0, 0, 0, fileDate.Location())
+
+			days := d1.Sub(d2).Hours() / 24
+
+			if days >= retentionDays {
+				err := os.Remove(filepath.Join(logDir, name))
+				if err != nil {
+					fmt.Println("Failed to delete old log:", name, err)
+				} else {
+					fmt.Println("Deleted old log:", name)
+				}
+			}
+		}
+	}
+}
 
 // Logging
 func logMsg(level string, c *color.Color, format string, args ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	msg := fmt.Sprintf(format, args...)
 	levelStr := fmt.Sprintf("[%s]", strings.ToUpper(level))
+
+	// Print to console
 	fmt.Printf("[%s] %s\n", timestamp, c.Sprint(levelStr+" "+msg))
+
+	// Write to file
+	if logFile != nil {
+		fullMsg := fmt.Sprintf("[%s] %s %s\n", timestamp, levelStr, msg)
+		logFile.WriteString(fullMsg)
+	}
 }
 
 func info(format string, args ...interface{}) {
@@ -59,11 +130,11 @@ func showMessageBox(message, title string, flags uint) {
 	if !isWindows() {
 		return
 	}
-	
+
 	// Convert strings to UTF16 pointers
 	messagePtr, _ := windows.UTF16PtrFromString(message)
 	titlePtr, _ := windows.UTF16PtrFromString(title)
-	
+
 	// Show message box
 	user32 := windows.NewLazySystemDLL("user32.dll")
 	MessageBox := user32.NewProc("MessageBoxW")
@@ -81,6 +152,11 @@ func isWindows() bool {
 }
 
 func main() {
+	initLog()
+	if logFile != nil {
+		defer logFile.Close()
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			errorLog(Msg("error_occurred", r))
