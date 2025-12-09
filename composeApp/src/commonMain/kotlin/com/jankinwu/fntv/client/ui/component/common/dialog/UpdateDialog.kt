@@ -8,19 +8,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.jankinwu.fntv.client.BuildConfig
+import com.jankinwu.fntv.client.data.constants.Colors
+import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.manager.UpdateInfo
 import com.jankinwu.fntv.client.manager.UpdateStatus
-import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.component.AccentButton
-import io.github.composefluent.component.Button
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Text
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdateDialog(
     status: UpdateStatus,
@@ -36,13 +41,15 @@ fun UpdateDialog(
             Column(modifier = Modifier.padding(24.dp)) {
                 when (status) {
                     is UpdateStatus.Checking -> {
-                        Text("Checking for updates...", style = FluentTheme.typography.subtitle)
+                        Text("检查更新中...", style = FluentTheme.typography.bodyLarge)
                     }
 
                     is UpdateStatus.Available -> {
-                        Text("Update Available", style = FluentTheme.typography.subtitle)
+                        Text("更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
-                        Text("Version: ${status.info.version}")
+                        Text("有新版本可以更新。最新版本为 ${status.info.version}，当前版本为 ${BuildConfig.VERSION_NAME}")
+                        Spacer(Modifier.height(12.dp))
+                        Text("【更新内容】")
                         Spacer(Modifier.height(8.dp))
                         Text(status.info.releaseNotes)
                         Spacer(Modifier.height(24.dp))
@@ -50,57 +57,54 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(onClick = onDismiss) {
-                                Text("Cancel")
-                            }
+                            DialogSecondaryButton("稍后再说", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
-                            AccentButton(
-                                buttonColors = customAccentButtonColors(),
-                                onClick = { onDownload(status.info) }) {
-                                Text("Download")
-                            }
+                            DialogAccentButton("下载更新", onClick = { onDownload(status.info) })
                         }
                     }
 
                     is UpdateStatus.Downloading -> {
-                        Text("Downloading...", style = FluentTheme.typography.subtitle)
+                        Text("下载中...", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
-                        Text("Progress: ${(status.progress * 100).toInt()}%")
+                        LinearProgressIndicator(
+                            progress = { status.progress },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Colors.AccentColorDefault,
+                            trackColor = Color.DarkGray.copy(alpha = 0.4f),
+                            strokeCap = ProgressIndicatorDefaults.CircularDeterminateStrokeCap,
+                            gapSize = 0.dp,
+                            drawStopIndicator = {}
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        val currentMb = FnDataConvertor.formatToMb(status.currentBytes)
+                        val totalMb = FnDataConvertor.formatToMb(status.totalBytes)
+                        Text("$currentMb MB / $totalMb MB")
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(onClick = onDismiss) {
-                                Text("Cancel")
-                            }
+                            DialogSecondaryButton("取消", onClick = onDismiss)
                         }
                     }
 
                     is UpdateStatus.Downloaded -> {
-                        Text("Update Downloaded", style = FluentTheme.typography.subtitle)
+                        Text("安装更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
-                        Text("File saved to: ${status.filePath}")
+                        Text("是否安装更新？")
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(onClick = onDismiss) {
-                                Text("Cancel")
-                            }
+                            DialogSecondaryButton("取消", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
-                            AccentButton(
-                                buttonColors = customAccentButtonColors(),
-                                onClick = { onInstall(status.info) }
-                            ) {
-                                Text("Install")
-                            }
+                            DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })
                         }
                     }
 
                     is UpdateStatus.Error -> {
-                        Text("Error", style = FluentTheme.typography.subtitle)
+                        Text("更新异常", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
                         Text(status.message)
                         Spacer(Modifier.height(24.dp))
@@ -108,30 +112,20 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            AccentButton(
-                                buttonColors = customAccentButtonColors(),
-                                onClick = onDismiss
-                            ) {
-                                Text("OK")
-                            }
+                            DialogAccentButton("好的", onClick = onDismiss)
                         }
                     }
 
                     is UpdateStatus.UpToDate -> {
-                        Text("Up to Date", style = FluentTheme.typography.subtitle)
+                        Text("更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
-                        Text("You are using the latest version.")
+                        Text("当前已是最新版本")
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            AccentButton(
-                                buttonColors = customAccentButtonColors(),
-                                onClick = onDismiss
-                            ) {
-                                Text("OK")
-                            }
+                            DialogAccentButton("好的", onClick = onDismiss)
                         }
                     }
 
@@ -141,3 +135,4 @@ fun UpdateDialog(
         }
     }
 }
+

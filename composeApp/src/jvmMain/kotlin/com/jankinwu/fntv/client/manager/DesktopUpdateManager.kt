@@ -17,8 +17,10 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.contentLength
 import io.ktor.serialization.jackson.jackson
 import io.ktor.utils.io.readAvailable
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +33,7 @@ import kotlin.math.max
 
 class DesktopUpdateManager : UpdateManager {
     private val scope = CoroutineScope(Dispatchers.IO)
+    private var downloadJob: Job? = null
     private val _status = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
     override val status: StateFlow<UpdateStatus> = _status.asStateFlow()
 
@@ -102,8 +105,11 @@ class DesktopUpdateManager : UpdateManager {
     }
 
     override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
-        scope.launch {
-            _status.value = UpdateStatus.Downloading(0f)
+        downloadJob?.cancel()
+        downloadJob = scope.launch {
+            _status.value = UpdateStatus.Downloading(0f, 0, info.size)
+            val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+            val file = File(executableDir, info.fileName)
             try {
                 val baseUrl = if (proxyUrl.isNotBlank()) {
                     if (proxyUrl.endsWith("/")) proxyUrl else "$proxyUrl/"
@@ -117,9 +123,6 @@ class DesktopUpdateManager : UpdateManager {
                 }
                 
                 Logger.i("Downloading update from: $url")
-
-                val executableDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-                val file = File(executableDir, info.fileName)
 
                 client.prepareGet(url).execute { httpResponse ->
                     val channel = httpResponse.bodyAsChannel()
@@ -136,7 +139,7 @@ class DesktopUpdateManager : UpdateManager {
                             output.write(buffer, 0, read)
                             downloadedSize += read
                             if (totalSize > 0) {
-                                _status.value = UpdateStatus.Downloading(downloadedSize.toFloat() / totalSize)
+                                _status.value = UpdateStatus.Downloading(downloadedSize.toFloat() / totalSize, downloadedSize, totalSize)
                             }
                         }
                     } finally {
@@ -144,9 +147,18 @@ class DesktopUpdateManager : UpdateManager {
                     }
                 }
                 _status.value = UpdateStatus.Downloaded(info, file.absolutePath)
+            } catch (e: CancellationException) {
+                Logger.i("Download cancelled")
+                if (file.exists()) {
+                    file.delete()
+                }
+                _status.value = UpdateStatus.Idle
             } catch (e: Exception) {
-                 Logger.e("Download failed", e)
+                Logger.e("Download failed", e)
                 _status.value = UpdateStatus.Error("Download failed: ${e.message}")
+                if (file.exists()) {
+                    file.delete()
+                }
             }
         }
     }
@@ -163,6 +175,12 @@ class DesktopUpdateManager : UpdateManager {
              if (result is InstallationResult.Failed) {
                  _status.value = UpdateStatus.Error("Installation failed: ${result.message}")
             }
+        }
+    }
+
+    override fun cancelDownload() {
+        if (downloadJob?.isActive == true) {
+            downloadJob?.cancel()
         }
     }
 

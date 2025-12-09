@@ -22,6 +22,10 @@ class UpdateViewModel : BaseViewModel() {
     fun installUpdate(info: UpdateInfo) {
         updateManager.installUpdate(info)
     }
+
+    fun cancelDownload() {
+        updateManager.cancelDownload()
+    }
     
     fun clearStatus() {
         updateManager.clearStatus()

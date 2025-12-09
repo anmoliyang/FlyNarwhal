@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.icons.Logout
+import com.jankinwu.fntv.client.icons.UpdateVersion
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
@@ -79,7 +80,10 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
         status = updateStatus,
         onDownload = { info -> updateViewModel.downloadUpdate(info) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
-        onDismiss = { updateViewModel.clearStatus() }
+        onDismiss = {
+            updateViewModel.cancelDownload()
+            updateViewModel.clearStatus()
+        }
     )
 
     Column {
@@ -348,9 +352,9 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                     caption = { Text("Proxy URL for checking updates (e.g. https://ghfast.top/)") },
                     icon = { Icon(Icons.Regular.Globe, null) },
                     trailing = {
-                         OutlinedTextField(
+                        OutlinedTextField(
                             value = proxyUrl,
-                            onValueChange = { 
+                            onValueChange = {
                                 proxyUrl = it
                                 AppSettings.updateProxyUrl = it
                             },
@@ -359,12 +363,19 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                         )
                     }
                 )
-                
+
                 CardExpanderItem(
-                    heading = { Text("Current Version: ${BuildConfig.VERSION_NAME}") },
+                    heading = { Text("当前版本号") },
+                    caption = { Text(BuildConfig.VERSION_NAME) },
+                    icon = {
+                        Icon(
+                            UpdateVersion,
+                            null, modifier = Modifier.size(18.dp)
+                        )
+                    },
                     trailing = {
                         Button(onClick = { updateViewModel.checkUpdate() }) {
-                            Text("Check for Updates")
+                            Text("检查更新")
                         }
                     }
                 )

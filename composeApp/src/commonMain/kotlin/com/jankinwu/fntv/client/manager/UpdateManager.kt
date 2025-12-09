@@ -38,7 +38,7 @@ sealed class UpdateStatus {
     data class Available(val info: UpdateInfo) : UpdateStatus()
     object UpToDate : UpdateStatus()
     data class Error(val message: String) : UpdateStatus()
-    data class Downloading(val progress: Float) : UpdateStatus()
+    data class Downloading(val progress: Float, val currentBytes: Long, val totalBytes: Long) : UpdateStatus()
     data class Downloaded(val info: UpdateInfo, val filePath: String) : UpdateStatus()
 }
 
@@ -47,5 +47,6 @@ interface UpdateManager {
     fun checkUpdate(proxyUrl: String)
     fun downloadUpdate(proxyUrl: String, info: UpdateInfo)
     fun installUpdate(info: UpdateInfo)
+    fun cancelDownload()
     fun clearStatus()
 }
