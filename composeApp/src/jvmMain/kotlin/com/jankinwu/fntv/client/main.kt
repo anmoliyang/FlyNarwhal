@@ -46,31 +46,7 @@ import java.awt.Dimension
 import java.io.File
 
 fun main() = application {
-    val userDirStr = System.getProperty("user.dir")
-    val userDirFile = File(userDirStr)
-    
-    // Check if we are running in development mode (via Gradle/IDE)
-    // We assume dev mode if build.gradle.kts exists in user.dir or user.dir/composeApp
-    val isDev = System.getProperty("compose.application.resources.dir") == null ||
-            File(userDirFile, "build.gradle.kts").exists()
-
-    val logDir = if (isDev) {
-        // Dev mode: try to find project root to place logs there
-        if (File(userDirFile.parentFile, "settings.gradle.kts").exists()) {
-            File(userDirFile.parentFile, "logs")
-        } else {
-            File(userDirFile, "logs")
-        }
-    } else {
-        // Packaged mode: use app dir / logs
-        val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-        File(appDir, "logs")
-    }
-
-    if (!logDir.exists()) {
-        logDir.mkdirs()
-    }
-    
+    val logDir = initializeLoggingDirectory()
     Logger.setLogWriters(CommonWriter(), FileLogWriter(logDir))
     Logger.i("Main") { "Application started. Logs directory: ${logDir.absolutePath}" }
 
@@ -164,6 +140,39 @@ fun main() = application {
             }
         }
     }
+}
+
+/**
+ * 初始化日志目录
+ * 根据应用程序运行模式（开发模式或打包模式）确定日志目录位置
+ */
+private fun initializeLoggingDirectory(): File {
+    val userDirStr = System.getProperty("user.dir")
+    val userDirFile = File(userDirStr)
+    
+    // Check if we are running in development mode (via Gradle/IDE)
+    // We assume dev mode if build.gradle.kts exists in user.dir or user.dir/composeApp
+    val isDev = System.getProperty("compose.application.resources.dir") == null ||
+            File(userDirFile, "build.gradle.kts").exists()
+
+    val logDir = if (isDev) {
+        // Dev mode: try to find project root to place logs there
+        if (File(userDirFile.parentFile, "settings.gradle.kts").exists()) {
+            File(userDirFile.parentFile, "logs")
+        } else {
+            File(userDirFile, "logs")
+        }
+    } else {
+        // Packaged mode: use app dir / logs
+        val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+        File(appDir, "logs")
+    }
+
+    if (!logDir.exists()) {
+        logDir.mkdirs()
+    }
+    
+    return logDir
 }
 
 /**
