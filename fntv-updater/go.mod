@@ -1,4 +1,4 @@
-module fn_media_update
+module fntv_updater
 
 go 1.25.4
 

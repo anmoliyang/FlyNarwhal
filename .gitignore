@@ -20,3 +20,4 @@ captures
 **.ini
 /installer/**.exe
 **/logs/
+/.trae/
