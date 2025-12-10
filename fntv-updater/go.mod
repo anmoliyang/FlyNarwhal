@@ -1,4 +1,4 @@
-module ani_update_go
+module fn_media_update
 
 go 1.25.4
 

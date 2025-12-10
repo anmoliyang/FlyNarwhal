@@ -13,11 +13,13 @@ import (
 	"github.com/fatih/color"
 	"github.com/shirou/gopsutil/v3/process"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
 )
 
 // Constants
 const (
 	AppName = "FnMedia.exe"
+	AppId   = "9A262498-6C63-4816-A346-056028719600"
 
 	// MessageBox constants
 	MB_OK              = 0x00000000
@@ -151,6 +153,26 @@ func isWindows() bool {
 	return strings.Contains(strings.ToLower(runtime.GOOS), "windows")
 }
 
+func checkRegistryInstall() bool {
+	keyPath := `SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\` + AppId + `_is1`
+
+	// Check HKLM
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, keyPath, registry.QUERY_VALUE)
+	if err == nil {
+		k.Close()
+		return true
+	}
+
+	// Check HKCU
+	k, err = registry.OpenKey(registry.CURRENT_USER, keyPath, registry.QUERY_VALUE)
+	if err == nil {
+		k.Close()
+		return true
+	}
+
+	return false
+}
+
 func main() {
 	initLog()
 	if logFile != nil {
@@ -175,6 +197,17 @@ func main() {
 
 	installerPath := args[1]
 	installDir := args[2]
+
+	if !checkRegistryInstall() {
+		info("Application not found in registry. Starting interactive installation...")
+		cmd := exec.Command(installerPath)
+		if err := cmd.Run(); err != nil {
+			errorLog("Installer failed: %v", err)
+			end()
+			return
+		}
+		os.Exit(0)
+	}
 
 	info(Msg("wait_app_exit"))
 	if err := waitAppExit(); err == nil {
@@ -309,3 +342,5 @@ func cleanInstallDir(dir string, installerPath string) error {
 	}
 	return nil
 }
+
+
