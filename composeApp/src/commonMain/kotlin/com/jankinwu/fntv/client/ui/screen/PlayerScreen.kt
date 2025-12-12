@@ -220,6 +220,12 @@ fun PlayerOverlay(
     val mediaPViewModel: MediaPViewModel = koinInject()
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
 
+    val audioLevelController = remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
+    LaunchedEffect(audioLevelController) {
+        val savedVolume = PlayingSettingsStore.getVolume()
+        audioLevelController?.setVolume(savedVolume)
+    }
+
     var currentResolution by remember { mutableStateOf("") }
     var currentBitrate by remember { mutableStateOf<Int?>(null) }
     
@@ -673,7 +679,7 @@ fun PlayerControlRow(
         ) {
             // 倍速
             SpeedControlFlyout(
-                yOffset = 50,
+                yOffset = 65,
                 onHoverStateChanged = onSpeedControlHoverChanged,
                 onSpeedSelected = { item ->
                     mediaPlayer.features[PlaybackSpeed]?.set(item.value)
@@ -685,7 +691,7 @@ fun PlayerControlRow(
                     qualities = qualities,
                     currentResolution = currentResolution,
                     currentBitrate = currentBitrate,
-                    yOffset = 50,
+                    yOffset = 65,
                     onHoverStateChanged = onQualityControlHoverChanged,
                     onQualitySelected = {
                         onQualitySelected?.invoke(it)
@@ -726,6 +732,7 @@ fun PlayerControlRow(
                 volume = volume,
                 onVolumeChange = {
                     audioLevelController?.setVolume(it)
+                    PlayingSettingsStore.saveVolume(it)
                 },
                 onHoverStateChanged = onVolumeControlHoverChanged,
                 modifier = Modifier.size(40.dp).padding(start = 4.dp)
@@ -996,6 +1003,10 @@ private suspend fun startPlayback(
     }
     delay(1500) // 等待播放器初始化
     player.features[PlaybackSpeed]?.set(1.0f)
+    // 恢复音量
+    val savedVolume = PlayingSettingsStore.getVolume()
+    player.features[AudioLevelController]?.setVolume(savedVolume)
+
     logger.i("startPlayback startPosition: $startPosition")
     player.seekTo(startPosition)
 }

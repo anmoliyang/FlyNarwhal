@@ -22,4 +22,12 @@ object PlayingSettingsStore {
         val bitrate = settings.getIntOrNull("quality_bitrate")
         return VideoQuality(resolution, bitrate)
     }
+
+    fun saveVolume(volume: Float) {
+        settings["player_volume"] = volume
+    }
+
+    fun getVolume(): Float {
+        return settings.getFloat("player_volume", 1.0f)
+    }
 }
