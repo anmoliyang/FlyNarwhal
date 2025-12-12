@@ -176,8 +176,21 @@ private fun initializeLoggingDirectory(): File {
         }
     } else {
         // Packaged mode: use app dir / logs
-        val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
-        File(appDir, "logs")
+        val platform = currentPlatformDesktop()
+        when (platform) {
+            is Platform.Linux -> {
+                val userHome = System.getProperty("user.home")
+                File(userHome, ".local/share/fn-media/logs")
+            }
+            is Platform.MacOS -> {
+                val userHome = System.getProperty("user.home")
+                File(userHome, "Library/Logs/fn-media")
+            }
+            is Platform.Windows -> {
+                val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
+                File(appDir, "logs")
+            }
+        }
     }
 
     if (!logDir.exists()) {
