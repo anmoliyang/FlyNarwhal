@@ -48,8 +48,11 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
+import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.model.request.StreamRequest
 import com.jankinwu.fntv.client.data.model.response.FileInfo
 import com.jankinwu.fntv.client.data.model.response.MediaResetQualityResponse
@@ -833,8 +836,20 @@ private suspend fun playMedia(
         val playInfoResponse = playInfoViewModel.loadDataAndWait(guid, mediaGuid)
         val startPosition: Long = playInfoResponse.ts.toLong() * 1000
 
+        // 获取用户信息
+        userInfoViewModel.loadUserInfo()
+        val userInfoState = userInfoViewModel.uiState
+            .filter { it is UiState.Success || it is UiState.Error }
+            .first()
+
+        val userInfo = when (userInfoState) {
+            is UiState.Success -> userInfoState.data
+            is UiState.Error -> throw Exception(userInfoState.message)
+            else -> throw Exception("Unknown Error")
+        }
+
         // 获取流信息
-        val streamInfo = fetchStreamInfo(playInfoResponse, userInfoViewModel, streamViewModel)
+        val streamInfo = fetchStreamInfo(playInfoResponse, userInfo, streamViewModel)
         val videoStream = streamInfo.videoStream
         val audioStream =
             streamInfo.audioStreams.first { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
@@ -938,11 +953,10 @@ private fun getMediaExtraFiles(
 
 private suspend fun fetchStreamInfo(
     playInfoResponse: PlayInfoResponse,
-    userInfoViewModel: UserInfoViewModel,
+    userInfo: UserInfoResponse,
     streamViewModel: StreamViewModel
 ): StreamResponse {
     // 获取用户信息以获取source_name
-    val userInfo = userInfoViewModel.loadUserInfoAndWait()
     val sourceName = userInfo.userSources.firstOrNull()?.sourceName ?: ""
     val ip = MD5.digest(sourceName.toByteArray()).hex
 
