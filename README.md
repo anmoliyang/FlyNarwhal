@@ -48,6 +48,7 @@
   ```bash
   # 给脚本加上可执行权限
   chmod +x gradlew
+  
   # 运行项目
   ./gradlew :composeApp:run
   ```
@@ -58,19 +59,36 @@
 ### 打包为可执行文件
 
 - 打包桌面端项目：
-  - 在 Android Studio 或 IntelliJ IDEA 中，在 Gradle Tasks 中找到 `compose desktop` -> `packageReleaseDistributionForCurrentOS` 任务，双击运行
+  - 在 Android Studio 或 IntelliJ IDEA 中，在 Gradle Tasks 中找到 `compose desktop` -> `packageReleaseDistributionForCurrentOS` 或者带当前系统支持的安装包格式的 `packageRelease` 任务，双击运行
   - 或者，使用命令行运行：
 
-    Linux 或 macOS
-    ```bash
-    # 给脚本加上可执行权限
-    chmod +x gradlew
-    # 打包项目
-    ./gradlew :composeApp:packageReleaseDistributionForCurrentOS
-    ```
-    Windows
     ```shell
-    .\gradlew.bat :composeApp:packageReleaseDistributionForCurrentOS
+    # Linux 或 MacOS 端需要给脚本增加可执行权限
+    chmod +x gradlew
+    ```
+    
+    Ubuntu 或 Debian
+    
+    ```bash
+    ./gradlew :composeApp:packageReleaseDeb
+    ```
+    
+    Fedora 或 CentOS
+    
+    ```shell
+    ./gradlew :composeApp:packageReleaseRpm
+    ```
+    
+    Arch Linux
+    
+    ```shell
+    ./gradlew :composeApp:packageReleasePkg
+    ```
+    
+    Windows
+    
+    ```shell
+    .\gradlew.bat :composeApp:packageReleaseExe
     ```
   - 打包完成后，可在 `composeApp\build\compose\binaries\main-release` 目录下找到可执行文件
 
