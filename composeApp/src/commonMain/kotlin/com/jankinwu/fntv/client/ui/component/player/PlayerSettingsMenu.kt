@@ -4,6 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,8 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -54,6 +56,7 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.response.AudioStream
+import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
@@ -68,6 +71,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 private val FlyoutBackgroundColor = Color.Black.copy(alpha = 0.9f)
 private val FlyoutBorderColor = Color.Gray.copy(alpha = 0.5f)
 private val SelectedTextColor = Color(0xFF2073DF)
+private val HoverBackgroundColor = Color.White.copy(alpha = 0.1f)
 private val DefaultTextColor = Color.White.copy(alpha = 0.7843f)
 private val MenuWidth = 320.dp
 private val FlyoutShape = RoundedCornerShape(8.dp)
@@ -280,7 +284,7 @@ fun SettingsFlyoutContent(
         border = BorderStroke(1.dp, FlyoutBorderColor),
         modifier = Modifier.width(MenuWidth)
     ) {
-        Box(modifier = Modifier.padding(16.dp)) {
+        Box(modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)) {
             if (currentScreen == "Main") {
                 MainSettingsScreen(
                     playingInfoCache = playingInfoCache,
@@ -317,9 +321,9 @@ fun MainSettingsScreen(
         ""
     }
 
-    Column {
+    Column(modifier = Modifier) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(start = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -340,7 +344,7 @@ fun MainSettingsScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(top = 8.dp, bottom = 8.dp, start = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -365,7 +369,7 @@ fun MainSettingsScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onNavigateToAudio() }
-                .padding(vertical = 8.dp),
+                .padding(top = 8.dp, bottom = 8.dp, start = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -412,13 +416,7 @@ fun AudioSettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, // Should be Back/Left?
-                // The screenshot shows a back arrow or title. 
-                // Usually it's "< Title". 
-                // Using KeyboardArrowRight rotated or a specific Back icon if available.
-                // Let's use a simple text or a back icon.
-                // Since I don't have a Back icon imported, I'll use text or ChevronLeft if I import it.
-                // Or use Icons.AutoMirrored.Filled.KeyboardArrowLeft if available.
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 180f }
@@ -436,9 +434,12 @@ fun AudioSettingsScreen(
             modifier = Modifier.padding(bottom = 12.dp),
             color = Color.White.copy(alpha = 0.1f)
         )
-
-        LazyColumn(
-            modifier = Modifier.height(200.dp)
+        val lazyListState = rememberLazyListState()
+        AnimatedScrollbarLazyColumn(
+            listState = lazyListState,
+            modifier = Modifier.height(200.dp),
+            scrollbarWidth = 2.dp,
+            scrollbarOffsetX = (-4).dp
         ) {
             items(audioList) { audio ->
                 val isSelected = audio.guid == currentAudioStream?.guid
@@ -462,6 +463,7 @@ fun AudioSettingsScreen(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun AudioOptionItem(
     language: String,
@@ -472,12 +474,17 @@ fun AudioOptionItem(
     onClick: () -> Unit
 ) {
     val textColor = if (isSelected) SelectedTextColor else DefaultTextColor
-    
+    var isHovered by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(bottom = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isHovered) HoverBackgroundColor else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
+            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+            .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

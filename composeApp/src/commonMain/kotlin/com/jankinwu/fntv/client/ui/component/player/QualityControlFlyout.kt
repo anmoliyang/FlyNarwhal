@@ -498,20 +498,6 @@ private fun CustomQualityPage(
             )
             val lazyListState = rememberLazyListState()
 
-//            ScrollbarContainer(
-//                adapter = rememberScrollbarAdapter(lazyListState),
-//                modifier = Modifier
-//                    .weight(0.6f)
-//                    .padding(horizontal = 4.dp)
-//            ) {
-//                // Right Column: Bitrates
-//                LazyColumn(
-//                    state = lazyListState,
-//                    modifier = Modifier
-////                        .weight(0.6f)
-////                        .verticalScroll(rememberScrollState())
-////                        .padding(horizontal = 4.dp)
-//                ) {
             AnimatedScrollbarLazyColumn(
                 listState = lazyListState,
                 modifier = Modifier.weight(0.6f).padding(horizontal = 4.dp),
@@ -532,21 +518,6 @@ private fun CustomQualityPage(
                         onClick = { onQualitySelected(q) }
                     )
                 }
-//                    bitrates.forEach { q ->
-//                        val isOriginal = q == qualities.first()
-//                        val label =
-//                            if (isOriginal) "${formatBitrateSimple(q.bitrate)} - 原画质" else formatBitrateSimple(
-//                                q.bitrate
-//                            )
-//                        val isSelected =
-//                            currentResolution == q.resolution && currentBitrate == q.bitrate
-//                        QualityItem(
-//                            label = label,
-//                            isSelected = isSelected,
-//                            onClick = { onQualitySelected(q) }
-//                        )
-//                    }
-//                }
             }
         }
     }

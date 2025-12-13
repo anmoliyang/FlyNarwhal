@@ -49,6 +49,7 @@ fun AnimatedScrollbarLazyColumn(
     listState: LazyListState,
     modifier: Modifier = Modifier,
     scrollbarWidth: Dp = 6.dp,
+    scrollbarOffsetX: Dp = (-1).dp,
     content: LazyListScope.() -> Unit
 ) {
     var isHovered by remember { mutableStateOf(false) }
@@ -84,7 +85,7 @@ fun AnimatedScrollbarLazyColumn(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize().offset(x = 8.dp)
+            modifier = Modifier.fillMaxSize()
         ) {
             content()
         }
@@ -150,7 +151,7 @@ fun AnimatedScrollbarLazyColumn(
                             .height(scrollbarHeight)
                             .fillMaxWidth()
                             .align(Alignment.TopCenter)
-                            .offset(y = scrollbarOffset)
+                            .offset(y = scrollbarOffset, x = scrollbarOffsetX)
                             .background(scrollbarColor, CircleShape)
                             .pointerInput(Unit) {
                                 detectDragGestures(
