@@ -3,7 +3,7 @@ package com.jankinwu.fntv.client.data.store
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 
-object AppSettings {
+object AppSettingsStore {
     private val settings: Settings = Settings()
 
     var githubResourceProxyUrl: String

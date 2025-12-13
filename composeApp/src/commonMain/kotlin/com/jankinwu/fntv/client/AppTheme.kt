@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.BrushPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.WindowState
-import com.jankinwu.fntv.client.data.store.AppSettings
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.Store
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.providable.LocalRefreshState
@@ -48,14 +48,14 @@ fun AppTheme(
         )
     }
     val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
-    LaunchedEffect(systemDarkMode, store.isFollowingSystemTheme, AppSettings.darkMode, isLoggedIn) {
+    LaunchedEffect(systemDarkMode, store.isFollowingSystemTheme, AppSettingsStore.darkMode, isLoggedIn) {
         if (!isLoggedIn) {
             store.darkMode = true
         } else {
             if (store.isFollowingSystemTheme) {
                 store.darkMode = systemDarkMode
             } else {
-                store.darkMode = AppSettings.darkMode
+                store.darkMode = AppSettingsStore.darkMode
             }
         }
     }

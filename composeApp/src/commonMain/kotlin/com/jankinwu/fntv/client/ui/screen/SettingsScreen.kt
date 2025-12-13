@@ -42,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
-import com.jankinwu.fntv.client.data.store.AppSettings
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
@@ -84,7 +84,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
     val latestVersion by updateViewModel.latestVersion.collectAsState()
-    var proxyUrl by remember { mutableStateOf(AppSettings.githubResourceProxyUrl) }
+    var proxyUrl by remember { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
@@ -150,7 +150,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                             textBefore = true,
                             onCheckStateChange = {
                                 store.isFollowingSystemTheme = it
-                                AppSettings.isFollowingSystemTheme = it
+                                AppSettingsStore.isFollowingSystemTheme = it
                             }
                         )
                     }
@@ -177,7 +177,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                                 textBefore = true,
                                 onCheckStateChange = {
                                     store.darkMode = it
-                                    AppSettings.darkMode = it
+                                    AppSettingsStore.darkMode = it
                                 }
                             )
                         }
@@ -343,7 +343,7 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                             value = proxyUrl,
                             onValueChange = {
                                 proxyUrl = it
-                                AppSettings.githubResourceProxyUrl = it
+                                AppSettingsStore.githubResourceProxyUrl = it
                             },
                             modifier = Modifier.width(200.dp),
                             singleLine = true,
