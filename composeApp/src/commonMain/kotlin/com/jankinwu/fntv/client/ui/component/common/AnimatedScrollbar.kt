@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.composefluent.FluentTheme
 import kotlinx.coroutines.Job
@@ -47,6 +48,7 @@ import kotlinx.coroutines.launch
 fun AnimatedScrollbarLazyColumn(
     listState: LazyListState,
     modifier: Modifier = Modifier,
+    scrollbarWidth: Dp = 6.dp,
     content: LazyListScope.() -> Unit
 ) {
     var isHovered by remember { mutableStateOf(false) }
@@ -124,7 +126,7 @@ fun AnimatedScrollbarLazyColumn(
                 Box(
                     modifier = Modifier
                         .fillMaxHeight()
-                        .width(6.dp)
+                        .width(scrollbarWidth)
                         .background(Color.Transparent)
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
