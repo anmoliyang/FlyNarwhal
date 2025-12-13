@@ -18,6 +18,8 @@ class Store(
 ) {
     var darkMode by mutableStateOf(systemDarkMode)
 
+    var isFollowingSystemTheme by mutableStateOf(AppSettings.isFollowingSystemTheme)
+
     var enabledAcrylicPopup by mutableStateOf(enabledAcrylicPopup)
 
     var compactMode by mutableStateOf(compactMode)
