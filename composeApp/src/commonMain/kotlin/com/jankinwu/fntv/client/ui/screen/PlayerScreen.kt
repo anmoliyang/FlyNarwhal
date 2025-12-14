@@ -87,6 +87,8 @@ import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
 import com.jankinwu.fntv.client.ui.component.player.VolumeControl
 import com.jankinwu.fntv.client.ui.component.player.formatDuration
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
+import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
+import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalIsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
 import com.jankinwu.fntv.client.ui.providable.LocalStore
@@ -95,6 +97,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
+import com.jankinwu.fntv.client.utils.chooseFile
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayPlayViewModel
@@ -103,6 +106,7 @@ import com.jankinwu.fntv.client.viewmodel.PlayerViewModel
 import com.jankinwu.fntv.client.viewmodel.StreamViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleDeleteViewModel
 import com.jankinwu.fntv.client.viewmodel.SubtitleMarkViewModel
+import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
@@ -241,12 +245,12 @@ fun PlayerOverlay(
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val playerManager = LocalPlayerManager.current
+    val frameWindowScope = LocalFrameWindowScope.current
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
-
     val iso6391State by tagViewModel.iso6391State.collectAsState()
     val iso6392State by tagViewModel.iso6392State.collectAsState()
     val iso3166State by tagViewModel.iso3166State.collectAsState()
@@ -312,6 +316,9 @@ fun PlayerOverlay(
     val subtitleDeleteViewModel: SubtitleDeleteViewModel = koinViewModel()
     val subtitleDeleteState by subtitleDeleteViewModel.uiState.collectAsState()
 
+    val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
+    val subtitleUploadState by subtitleUploadViewModel.uiState.collectAsState()
+
     val streamViewModel: StreamViewModel = koinViewModel()
     val userInfoViewModel: UserInfoViewModel = koinViewModel()
 
@@ -354,6 +361,13 @@ fun PlayerOverlay(
         if (subtitleDeleteState is UiState.Success) {
             refreshSubtitleList()
             subtitleDeleteViewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(subtitleUploadState) {
+        if (subtitleUploadState is UiState.Success) {
+            refreshSubtitleList()
+            subtitleUploadViewModel.clearError()
         }
     }
 
@@ -500,7 +514,8 @@ fun PlayerOverlay(
     }
     CompositionLocalProvider(
         LocalIsoTagData provides isoTagData,
-        LocalToastManager provides toastManager
+        LocalToastManager provides toastManager,
+        LocalFileInfo provides playingInfoCache?.currentFileStream
     ) {
         Box(
             modifier = Modifier
@@ -750,7 +765,22 @@ fun PlayerOverlay(
                                 showAddNasSubtitleDialog = true
                             },
                             onOpenAddLocalSubtitle = {
-                                // Placeholder for local subtitle
+                                val mediaGuid = playingInfoCache?.currentFileStream?.guid
+                                if (mediaGuid != null) {
+                                    val file = chooseFile(
+                                        frameWindowScope,
+                                        arrayOf("ass", "srt", "vtt", "sub", "ssa"),
+                                        "选择字幕文件"
+                                    )
+                                    file?.let { selectedFile ->
+                                        val byteArray = selectedFile.readBytes()
+                                        subtitleUploadViewModel.uploadSubtitle(
+                                            mediaGuid,
+                                            byteArray,
+                                            selectedFile.name
+                                        )
+                                    }
+                                }
                             },
                             onSubtitleControlHoverChanged = { isHovered ->
                                 isSubtitleControlHovered = isHovered
@@ -1091,7 +1121,7 @@ fun rememberPlayMediaFunction(
         playerManager,
         mediaGuid,
         currentAudioGuid,
-        currentSubtitleGuid
+        currentSubtitleGuid,
     ) {
         {
             scope.launch {
@@ -1157,6 +1187,22 @@ private suspend fun playMedia(
         }
         val subtitleGuid = currentSubtitleGuid ?: subtitleStream?.guid
         val fileStream = streamInfo.fileStream
+
+        // 缓存播放信息 (提前初始化，确保LocalFileInfo可用)
+        val cache = PlayingInfoCache(
+            streamInfo,
+            "",
+            fileStream,
+            videoStream,
+            audioStream,
+            subtitleStream,
+            playInfoResponse.item.guid,
+            streamInfo.qualities,
+            currentAudioStreamList = streamInfo.audioStreams,
+            currentSubtitleStreamList = streamInfo.subtitleStreams
+        )
+        playerViewModel.updatePlayingInfo(cache)
+
         // 显示播放器
         val videoDuration = videoStream.duration * 1000L
         if (playInfoResponse.type == FnTvMediaType.EPISODE.value) {
@@ -1200,19 +1246,8 @@ private suspend fun playMedia(
         }
 
         // 缓存播放信息
-        val cache = PlayingInfoCache(
-            streamInfo,
-            playLink,
-            fileStream,
-            videoStream,
-            audioStream,
-            subtitleStream,
-            playInfoResponse.item.guid,
-            streamInfo.qualities,
-            currentAudioStreamList = streamInfo.audioStreams,
-            currentSubtitleStreamList = streamInfo.subtitleStreams
-        )
-        playerViewModel.updatePlayingInfo(cache)
+        val finalCache = cache.copy(playLink = playLink)
+        playerViewModel.updatePlayingInfo(finalCache)
 
         logger.i("startPosition: $startPosition")
         // 设置字幕
@@ -1222,12 +1257,12 @@ private suspend fun playMedia(
         } ?: MediaExtraFiles()
         // 启动播放器
         startPlayback(player, playLink, startPosition, extraFiles)
-        // 记录播放数据
-        callPlayRecord(
+        // 调用playRecord接口
+            callPlayRecord(
 //            itemGuid = guid,
-            ts = if ((startPosition / 1000).toInt() == 0) 1 else (startPosition / 1000).toInt(),
-            playingInfoCache = cache,
-            playRecordViewModel = playRecordViewModel,
+                ts = if ((startPosition / 1000).toInt() == 0) 1 else (startPosition / 1000).toInt(),
+                playingInfoCache = finalCache,
+                playRecordViewModel = playRecordViewModel,
             onSuccess = {
                 logger.i("起播时调用playRecord成功")
             },
