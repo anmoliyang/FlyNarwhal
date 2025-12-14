@@ -15,6 +15,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.prepareGet
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.contentLength
+import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.jackson.jackson
 import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.CancellationException
@@ -56,8 +57,14 @@ class DesktopUpdateManager : UpdateManager {
                 val targetUrl = "https://api.github.com/repos/FNOSP/fntv-client-multiplatform/releases/latest"
 
                 logger.i("Checking update from: $targetUrl")
-                
-                val release: GitHubRelease = client.get(targetUrl).body()
+
+                val response = client.get(targetUrl)
+                if (response.status == HttpStatusCode.NotFound) {
+                    logger.i("No releases found (404)")
+                    _status.value = UpdateStatus.UpToDate
+                    return@launch
+                }
+                val release: GitHubRelease = response.body()
                 val currentVersion = BuildConfig.VERSION_NAME
                 
                 val remoteVersion = release.name.removePrefix("v").trim()
