@@ -179,8 +179,11 @@ kotlin {
 //            implementation(libs.vlcj)
             implementation(libs.oshi.core)
             implementation(libs.versioncompare)
-            implementation(files("libs/jSystemThemeDetector-3.8.jar"))
-            implementation(libs.jfa)
+            implementation(libs.jSystemThemeDetector)
+//            implementation(files("libs/jSystemThemeDetector-3.8.jar"))
+//            implementation(libs.jfa)
+//            implementation(libs.jpms)
+//            implementation(libs.jna.platform)
 //            implementation(libs.mediamp.vlc)
 //            implementation(libs.mediamp.vlc.compose)
         }
