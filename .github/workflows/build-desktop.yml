@@ -74,7 +74,7 @@ jobs:
           if-no-files-found: error
 
   build-linux-deb-x64:
-    name: Build Linux Deb
+    name: Build Linux Deb (x64)
     runs-on: ubuntu-latest
     
     steps:
