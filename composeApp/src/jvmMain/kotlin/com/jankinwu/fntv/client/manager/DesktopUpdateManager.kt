@@ -128,6 +128,7 @@ class DesktopUpdateManager : UpdateManager {
                 if (releases.isEmpty()) {
                     logger.i("No releases found")
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                     return@launch
                 }
 
@@ -152,6 +153,7 @@ class DesktopUpdateManager : UpdateManager {
                 if (validReleases.isEmpty()) {
                     logger.i("No compatible releases found")
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                     return@launch
                 }
 
@@ -193,9 +195,11 @@ class DesktopUpdateManager : UpdateManager {
                         }
                     } else {
                         _status.value = UpdateStatus.UpToDate
+                        _latestVersion.value = null
                     }
                 } else {
                     _status.value = UpdateStatus.UpToDate
+                    _latestVersion.value = null
                 }
             } catch (e: Exception) {
                 logger.e("Update check failed", e)
