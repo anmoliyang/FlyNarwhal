@@ -99,15 +99,18 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
         onDownload = { info -> updateViewModel.downloadUpdate(info) },
         onInstall = { info -> updateViewModel.installUpdate(info) },
         onSkip = { info ->
-            val skipped = AppSettingsStore.skippedVersions
-            AppSettingsStore.skippedVersions = skipped + info.version
+            updateViewModel.skipVersion(info.version)
+            showUpdateDialog = false
+        },
+        onCancelDownload = {
+            updateViewModel.cancelDownload()
+            showUpdateDialog = false
+        },
+        onBackground = {
             showUpdateDialog = false
         },
         onDismiss = {
-            updateViewModel.cancelDownload()
             showUpdateDialog = false
-            // 不再清除全局状态，以保留更新提示标签
-            // updateViewModel.clearStatus()
         }
     )
 

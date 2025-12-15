@@ -109,4 +109,8 @@ class UpdateViewModel : BaseViewModel() {
     fun clearStatus() {
         updateManager.clearStatus()
     }
+
+    fun skipVersion(version: String) {
+        updateManager.skipVersion(version)
+    }
 }

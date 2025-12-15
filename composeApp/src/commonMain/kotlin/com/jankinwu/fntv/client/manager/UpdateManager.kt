@@ -52,4 +52,5 @@ interface UpdateManager {
     fun installUpdate(info: UpdateInfo)
     fun cancelDownload()
     fun clearStatus()
+    fun skipVersion(version: String)
 }

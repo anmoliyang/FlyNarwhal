@@ -33,6 +33,8 @@ fun UpdateDialog(
     onDownload: (UpdateInfo) -> Unit,
     onInstall: (UpdateInfo) -> Unit,
     onSkip: (UpdateInfo) -> Unit,
+    onCancelDownload: () -> Unit,
+    onBackground: () -> Unit,
     onDismiss: () -> Unit
 ) {
     if (showDialog && status !is UpdateStatus.Idle) {
@@ -111,7 +113,9 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            DialogSecondaryButton("取消", onClick = onDismiss)
+                            DialogSecondaryButton("后台下载", onClick = onBackground)
+                            Spacer(Modifier.width(8.dp))
+                            DialogSecondaryButton("取消下载", onClick = onCancelDownload)
                         }
                     }
 

@@ -38,6 +38,8 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import kotlin.math.max
 
+import java.util.concurrent.atomic.AtomicBoolean
+
 class DesktopUpdateManager : UpdateManager {
     private val logger = Logger.withTag("DesktopUpdateManager")
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -47,6 +49,9 @@ class DesktopUpdateManager : UpdateManager {
 
     private val _latestVersion = MutableStateFlow<UpdateInfo?>(null)
     override val latestVersion: StateFlow<UpdateInfo?> = _latestVersion.asStateFlow()
+
+    private val suppressStatusUpdates = AtomicBoolean(false)
+    private var currentDownloadInfo: UpdateInfo? = null
 
     private val client = HttpClient(OkHttp) {
         engine {
@@ -233,10 +238,16 @@ class DesktopUpdateManager : UpdateManager {
                         if (file.exists() && file.length() == asset.size) {
                             _status.value = UpdateStatus.ReadyToInstall(updateInfo, file.absolutePath)
                         } else {
-                            _status.value = UpdateStatus.Available(updateInfo)
-                            if (!isManual && autoDownload) {
-                                logger.i("Auto downloading update")
-                                downloadUpdate(proxyUrl, updateInfo)
+                            if (isManual && downloadJob?.isActive == true && currentDownloadInfo?.version == updateInfo.version) {
+                                logger.i("Download already in progress, showing available status")
+                                suppressStatusUpdates.set(true)
+                                _status.value = UpdateStatus.Available(updateInfo)
+                            } else {
+                                _status.value = UpdateStatus.Available(updateInfo)
+                                if (!isManual && autoDownload) {
+                                    logger.i("Auto downloading update")
+                                    downloadUpdate(proxyUrl, updateInfo)
+                                }
                             }
                         }
                     } else {
@@ -292,7 +303,19 @@ class DesktopUpdateManager : UpdateManager {
     }
 
     override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
+        if (downloadJob?.isActive == true && currentDownloadInfo?.version == info.version) {
+            logger.i("Joining existing download for version ${info.version}")
+            suppressStatusUpdates.set(false)
+            // Force an update to current status so UI refreshes immediately
+            // Ideally we would have the last progress state stored, but the loop will update it soon anyway.
+            // Or we can let the next loop iteration handle it.
+            return
+        }
+
         downloadJob?.cancel()
+        currentDownloadInfo = info
+        suppressStatusUpdates.set(false)
+        
         downloadJob = scope.launch {
             _status.value = UpdateStatus.Downloading(0f, 0, info.size)
             val updateDir = getUpdateDirectory()
@@ -325,7 +348,7 @@ class DesktopUpdateManager : UpdateManager {
                             if (read <= 0) break
                             output.write(buffer, 0, read)
                             downloadedSize += read
-                            if (totalSize > 0) {
+                            if (totalSize > 0 && !suppressStatusUpdates.get()) {
                                 _status.value = UpdateStatus.Downloading(downloadedSize.toFloat() / totalSize, downloadedSize, totalSize)
                             }
                         }
@@ -333,19 +356,23 @@ class DesktopUpdateManager : UpdateManager {
                         output.close()
                     }
                 }
-                _status.value = UpdateStatus.Downloaded(info, file.absolutePath)
+                if (!suppressStatusUpdates.get()) {
+                    _status.value = UpdateStatus.Downloaded(info, file.absolutePath)
+                }
             } catch (_: CancellationException) {
                 logger.i("Download cancelled")
                 if (file.exists()) {
                     file.delete()
                 }
                 _status.value = UpdateStatus.Idle
+                currentDownloadInfo = null
             } catch (e: Exception) {
                 logger.e("Download failed", e)
                 _status.value = UpdateStatus.Error("Download failed: ${e.message}")
                 if (file.exists()) {
                     file.delete()
                 }
+                currentDownloadInfo = null
             }
         }
     }
@@ -372,6 +399,28 @@ class DesktopUpdateManager : UpdateManager {
 
     override fun clearStatus() {
         _status.value = UpdateStatus.Idle
+    }
+
+    override fun skipVersion(version: String) {
+        val skipped = AppSettingsStore.skippedVersions
+        if (!skipped.contains(version)) {
+            AppSettingsStore.skippedVersions = skipped + version
+        }
+
+        if (currentDownloadInfo?.version == version) {
+            cancelDownload()
+        }
+
+        if (_latestVersion.value?.version == version) {
+            _latestVersion.value = null
+            val currentStatus = _status.value
+            if (currentStatus is UpdateStatus.Available ||
+                currentStatus is UpdateStatus.Downloading ||
+                currentStatus is UpdateStatus.ReadyToInstall ||
+                currentStatus is UpdateStatus.Downloaded) {
+                _status.value = UpdateStatus.Idle
+            }
+        }
     }
 
     private fun compareVersions(v1: String, v2: String): Int {
