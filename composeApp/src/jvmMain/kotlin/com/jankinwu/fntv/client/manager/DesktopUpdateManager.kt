@@ -51,7 +51,9 @@ class DesktopUpdateManager : UpdateManager {
     override val latestVersion: StateFlow<UpdateInfo?> = _latestVersion.asStateFlow()
 
     private val suppressStatusUpdates = AtomicBoolean(false)
+    private val isUserInitiatedDownload = AtomicBoolean(false)
     private var currentDownloadInfo: UpdateInfo? = null
+    private var lastDownloadStatus: UpdateStatus.Downloading? = null
 
     private val client = HttpClient(OkHttp) {
         engine {
@@ -238,15 +240,24 @@ class DesktopUpdateManager : UpdateManager {
                         if (file.exists() && file.length() == asset.size) {
                             _status.value = UpdateStatus.ReadyToInstall(updateInfo, file.absolutePath)
                         } else {
-                            if (isManual && downloadJob?.isActive == true && currentDownloadInfo?.version == updateInfo.version) {
-                                logger.i("Download already in progress, showing available status")
-                                suppressStatusUpdates.set(true)
-                                _status.value = UpdateStatus.Available(updateInfo)
+                            if (downloadJob?.isActive == true && currentDownloadInfo?.version == updateInfo.version) {
+                                if (isManual) {
+                                    if (isUserInitiatedDownload.get()) {
+                                        suppressStatusUpdates.set(false)
+                                        lastDownloadStatus?.let { _status.value = it }
+                                    } else {
+                                        logger.i("Download already in progress, showing available status")
+                                        suppressStatusUpdates.set(true)
+                                        _status.value = UpdateStatus.Available(updateInfo)
+                                    }
+                                } else {
+                                    _status.value = UpdateStatus.Available(updateInfo)
+                                }
                             } else {
                                 _status.value = UpdateStatus.Available(updateInfo)
                                 if (!isManual && autoDownload) {
                                     logger.i("Auto downloading update")
-                                    downloadUpdate(proxyUrl, updateInfo)
+                                    startDownload(proxyUrl, updateInfo, isBackground = true)
                                 }
                             }
                         }
@@ -303,21 +314,38 @@ class DesktopUpdateManager : UpdateManager {
     }
 
     override fun downloadUpdate(proxyUrl: String, info: UpdateInfo) {
+        startDownload(proxyUrl, info, isBackground = false)
+    }
+
+    private fun startDownload(proxyUrl: String, info: UpdateInfo, isBackground: Boolean) {
         if (downloadJob?.isActive == true && currentDownloadInfo?.version == info.version) {
             logger.i("Joining existing download for version ${info.version}")
-            suppressStatusUpdates.set(false)
+            isUserInitiatedDownload.set(!isBackground)
+            suppressStatusUpdates.set(isBackground)
             // Force an update to current status so UI refreshes immediately
-            // Ideally we would have the last progress state stored, but the loop will update it soon anyway.
-            // Or we can let the next loop iteration handle it.
+            if (!isBackground) {
+                lastDownloadStatus?.let { _status.value = it }
+            }
+            return
+        }
+
+        val existingFile = findUpdateFile(info.fileName)
+        if (existingFile.exists() && existingFile.length() == info.size) {
+            logger.i("Update file already exists and matches size. Skipping download.")
+            _status.value = UpdateStatus.ReadyToInstall(info, existingFile.absolutePath)
             return
         }
 
         downloadJob?.cancel()
         currentDownloadInfo = info
-        suppressStatusUpdates.set(false)
+        isUserInitiatedDownload.set(!isBackground)
+        suppressStatusUpdates.set(isBackground)
+        lastDownloadStatus = null
         
         downloadJob = scope.launch {
-            _status.value = UpdateStatus.Downloading(0f, 0, info.size)
+            if (!isBackground) {
+                _status.value = UpdateStatus.Downloading(0f, 0, info.size)
+            }
             val updateDir = getUpdateDirectory()
             val file = File(updateDir, info.fileName)
             try {
@@ -348,8 +376,12 @@ class DesktopUpdateManager : UpdateManager {
                             if (read <= 0) break
                             output.write(buffer, 0, read)
                             downloadedSize += read
-                            if (totalSize > 0 && !suppressStatusUpdates.get()) {
-                                _status.value = UpdateStatus.Downloading(downloadedSize.toFloat() / totalSize, downloadedSize, totalSize)
+                            if (totalSize > 0) {
+                                val status = UpdateStatus.Downloading(downloadedSize.toFloat() / totalSize, downloadedSize, totalSize)
+                                lastDownloadStatus = status
+                                if (!suppressStatusUpdates.get()) {
+                                    _status.value = status
+                                }
                             }
                         }
                     } finally {
@@ -366,6 +398,7 @@ class DesktopUpdateManager : UpdateManager {
                 }
                 _status.value = UpdateStatus.Idle
                 currentDownloadInfo = null
+                lastDownloadStatus = null
             } catch (e: Exception) {
                 logger.e("Download failed", e)
                 _status.value = UpdateStatus.Error("Download failed: ${e.message}")
@@ -373,6 +406,7 @@ class DesktopUpdateManager : UpdateManager {
                     file.delete()
                 }
                 currentDownloadInfo = null
+                lastDownloadStatus = null
             }
         }
     }
