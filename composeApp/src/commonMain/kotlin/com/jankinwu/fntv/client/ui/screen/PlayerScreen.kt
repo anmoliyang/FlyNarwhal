@@ -253,7 +253,7 @@ fun PlayerOverlay(
     var isQualityControlHovered by remember { mutableStateOf(false) }
     var isSettingsMenuHovered by remember { mutableStateOf(false) }
     var isSubtitleControlHovered by remember { mutableStateOf(false) }
-    var lastVolume by remember { mutableFloatStateOf(1f) }
+    var lastVolume by remember { mutableFloatStateOf(0f) }
     val isPlayControlHovered =
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
@@ -1420,7 +1420,7 @@ private fun handlePlayerKeyEvent(
                         PlayingSettingsStore.saveVolume(0f)
                         toastManager.showToast("静音", ToastType.Info)
                     } else {
-                        val restoreVolume = if (lastVolume > 0) lastVolume else 0.1f
+                        val restoreVolume = if (lastVolume > 0) lastVolume else 0.05f
                         it.setVolume(restoreVolume)
                         PlayingSettingsStore.saveVolume(restoreVolume)
                         toastManager.showToast("解除静音：${(restoreVolume * 100).toInt()}%", ToastType.Info)

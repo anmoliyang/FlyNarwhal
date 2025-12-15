@@ -48,9 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import co.touchlab.kermit.Logger
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import io.github.alexzhirkevich.compottie.LottieCompositionSpec
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -169,35 +167,24 @@ fun VolumeControl(
             }
         }
 
-        val highComposition by rememberLottieComposition {
-            try {
-                val bytes = Res.readBytes("files/volume_high_lottie.json")
-                LottieCompositionSpec.JsonString(bytes.decodeToString())
-            } catch (e: Exception) {
-                Logger.e { "Failed to load high volume lottie: $e" }
-                throw e
-            }
-        }
+        val highSpec = PlayerResourceManager.volumeHighSpec
+        val lowSpec = PlayerResourceManager.volumeLowSpec
+        val offSpec = PlayerResourceManager.volumeOffSpec
 
-        val lowComposition by rememberLottieComposition {
-            try {
-                val bytes = Res.readBytes("files/volume_low_lottie.json")
-                LottieCompositionSpec.JsonString(bytes.decodeToString())
-            } catch (e: Exception) {
-                Logger.e { "Failed to load low volume lottie: $e" }
-                throw e
-            }
-        }
+        val highComposition = if (highSpec != null) {
+            val c by rememberLottieComposition { highSpec }
+            c
+        } else null
 
-        val offComposition by rememberLottieComposition {
-            try {
-                val bytes = Res.readBytes("files/volume_off_lottie.json")
-                LottieCompositionSpec.JsonString(bytes.decodeToString())
-            } catch (e: Exception) {
-                Logger.e { "Failed to load off volume lottie: $e" }
-                throw e
-            }
-        }
+        val lowComposition = if (lowSpec != null) {
+            val c by rememberLottieComposition { lowSpec }
+            c
+        } else null
+
+        val offComposition = if (offSpec != null) {
+            val c by rememberLottieComposition { offSpec }
+            c
+        } else null
 
         val composition = when (volumeLevel) {
             2 -> highComposition
@@ -213,7 +200,7 @@ fun VolumeControl(
 
         if (composition != null) {
             val progress by animateLottieCompositionAsState(
-                composition = composition!!,
+                composition = composition,
                 isPlaying = isPlaying,
                 iterations = 1,
                 restartOnPlay = true
@@ -225,7 +212,7 @@ fun VolumeControl(
             }
 
             Image(
-                painter = rememberLottiePainter(composition!!, progress = { progress }),
+                painter = rememberLottiePainter(composition, progress = { progress }),
                 contentDescription = "音量",
 //                    tint = Color.White,
                 modifier = Modifier
