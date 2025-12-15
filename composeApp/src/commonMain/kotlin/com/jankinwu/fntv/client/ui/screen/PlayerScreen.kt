@@ -1418,12 +1418,12 @@ private fun handlePlayerKeyEvent(
                         onLastVolumeChange(currentVolume)
                         it.setVolume(0f)
                         PlayingSettingsStore.saveVolume(0f)
-                        toastManager.showToast("静音", ToastType.Info)
+                        toastManager.showToast("静音", ToastType.Info, category = "volume")
                     } else {
                         val restoreVolume = if (lastVolume > 0) lastVolume else 0.05f
                         it.setVolume(restoreVolume)
                         PlayingSettingsStore.saveVolume(restoreVolume)
-                        toastManager.showToast("解除静音：${(restoreVolume * 100).toInt()}%", ToastType.Info)
+                        toastManager.showToast("解除静音：${(restoreVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                     }
                 }
             }
@@ -1431,7 +1431,7 @@ private fun handlePlayerKeyEvent(
                 val seekPosition = (mediaPlayer.currentPositionMillis.value - 10000).coerceAtLeast(0)
                 mediaPlayer.seekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
-                toastManager.showToast("快退至：$dateTime", ToastType.Info)
+                toastManager.showToast("快退至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
                     ts = (seekPosition / 1000).toInt(),
                     playingInfoCache = playingInfoCache,
@@ -1444,7 +1444,7 @@ private fun handlePlayerKeyEvent(
                 val seekPosition = (mediaPlayer.currentPositionMillis.value + 10000).coerceAtMost(playerManager.playerState.duration)
                 mediaPlayer.seekTo(seekPosition)
                 val dateTime = FnDataConvertor.formatDurationToDateTime(seekPosition)
-                toastManager.showToast("快进至：$dateTime", ToastType.Info)
+                toastManager.showToast("快进至：$dateTime", ToastType.Info, category = "seek")
                 callPlayRecord(
                     ts = (seekPosition / 1000).toInt(),
                     playingInfoCache = playingInfoCache,
@@ -1457,7 +1457,7 @@ private fun handlePlayerKeyEvent(
                 audioLevelController?.let {
                     val newVolume = (it.volume.value + 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
-                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info)
+                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                     PlayingSettingsStore.saveVolume(newVolume)
                 }
             }
@@ -1465,7 +1465,7 @@ private fun handlePlayerKeyEvent(
                 audioLevelController?.let {
                     val newVolume = (it.volume.value - 0.1f).coerceIn(0f, 1f)
                     it.setVolume(newVolume)
-                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info)
+                    toastManager.showToast("当前音量：${(newVolume * 100).toInt()}%", ToastType.Info, category = "volume")
                     PlayingSettingsStore.saveVolume(newVolume)
                 }
             }
