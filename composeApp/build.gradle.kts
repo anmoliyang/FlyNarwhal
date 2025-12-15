@@ -180,6 +180,7 @@ kotlin {
             implementation(libs.oshi.core)
             implementation(libs.versioncompare)
             implementation(files("libs/jSystemThemeDetector-3.8.jar"))
+            implementation(libs.jfa)
 //            implementation(libs.mediamp.vlc)
 //            implementation(libs.mediamp.vlc.compose)
         }
