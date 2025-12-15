@@ -29,4 +29,12 @@ object AppSettingsStore {
     var lastUpdateCheckTime: Long
         get() = settings.getLong("last_update_check_time", 0L)
         set(value) = settings.set("last_update_check_time", value)
+
+    var windowWidth: Float
+        get() = settings.getFloat("window_width", 1280f)
+        set(value) = settings.set("window_width", value)
+
+    var windowHeight: Float
+        get() = settings.getFloat("window_height", 720f)
+        set(value) = settings.set("window_height", value)
 }
