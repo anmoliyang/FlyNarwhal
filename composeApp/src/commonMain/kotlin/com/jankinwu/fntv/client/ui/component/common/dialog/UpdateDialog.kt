@@ -70,29 +70,6 @@ fun UpdateDialog(
                         }
                     }
 
-                    is UpdateStatus.Verifying -> {
-                        Text("正在校验文件完整性...", style = FluentTheme.typography.bodyLarge)
-                    }
-
-                    is UpdateStatus.VerificationSuccess -> {
-                        Text("文件完整性校验成功，准备执行安装程序...", style = FluentTheme.typography.bodyLarge)
-                    }
-
-                    is UpdateStatus.VerificationFailed -> {
-                        Text("校验失败", style = FluentTheme.typography.subtitle)
-                        Spacer(Modifier.height(12.dp))
-                        Text("安装包完整性校验不通过，是否需要重新下载安装包？")
-                        Spacer(Modifier.height(24.dp))
-                        Row(
-                            horizontalArrangement = Arrangement.End,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            DialogSecondaryButton("稍后下载", onClick = { onDeleteAndDismiss(status.info) })
-                            Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("重新下载", onClick = { onDownload(status.info, true) })
-                        }
-                    }
-
                     is UpdateStatus.ReadyToInstall -> {
                         Text("更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
@@ -155,6 +132,29 @@ fun UpdateDialog(
                             DialogSecondaryButton("稍后", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
                             DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })
+                        }
+                    }
+
+                    is UpdateStatus.Verifying -> {
+                        Text("正在校验文件完整性...", style = FluentTheme.typography.bodyLarge)
+                    }
+
+                    is UpdateStatus.VerificationSuccess -> {
+                        Text("文件完整性校验成功，准备执行安装程序...", style = FluentTheme.typography.bodyLarge)
+                    }
+
+                    is UpdateStatus.VerificationFailed -> {
+                        Text("校验失败", style = FluentTheme.typography.subtitle)
+                        Spacer(Modifier.height(12.dp))
+                        Text("安装包完整性校验不通过，是否需要重新下载安装包？")
+                        Spacer(Modifier.height(24.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.End,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            DialogSecondaryButton("稍后下载", onClick = { onDeleteAndDismiss(status.info) })
+                            Spacer(Modifier.width(8.dp))
+                            DialogAccentButton("重新下载", onClick = { onDownload(status.info, true) })
                         }
                     }
 
