@@ -74,6 +74,10 @@ fun UpdateDialog(
                         Text("正在校验文件完整性...", style = FluentTheme.typography.bodyLarge)
                     }
 
+                    is UpdateStatus.VerificationSuccess -> {
+                        Text("文件完整性校验成功，准备执行安装程序...", style = FluentTheme.typography.bodyLarge)
+                    }
+
                     is UpdateStatus.VerificationFailed -> {
                         Text("校验失败", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))

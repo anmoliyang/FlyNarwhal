@@ -22,16 +22,16 @@ data class GitHubAsset(
     val name: String,
     @param:JsonProperty("browser_download_url")
     val browserDownloadUrl: String,
-    val size: Long
+    val size: Long,
+    val digest: String? = null
 )
 
 data class UpdateInfo(
     val version: String,
     val releaseNotes: String,
     val downloadUrl: String,
-    val signatureDownloadUrl: String? = null,
+    val hash: String? = null,
     val fileName: String,
-    val signatureFileName: String? = null,
     val size: Long
 )
 
@@ -45,6 +45,7 @@ sealed class UpdateStatus {
     data class Downloaded(val info: UpdateInfo, val filePath: String) : UpdateStatus()
     data class ReadyToInstall(val info: UpdateInfo, val filePath: String) : UpdateStatus()
     object Verifying : UpdateStatus()
+    object VerificationSuccess : UpdateStatus()
     data class VerificationFailed(val info: UpdateInfo) : UpdateStatus()
 }
 
