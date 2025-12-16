@@ -203,8 +203,8 @@ jobs:
           if [[ "${{ github.ref }}" =~ [Aa]lpha ]]; then
             {
               echo "WARNING_TEXT<<EOF"
-              echo "1. 解决 MacOS 端安装应用后无法成功启动的问题。"
-              echo "2. 安装更新包前增加文件完整性校验。"
+              echo "1. 支持本地 MP4 SDR 视频使用直链播放。"
+              echo "2. 优化 MacOS 端的界面布局。"
               echo ""
               echo "详情请参考 git commit 日志"
               echo ""
