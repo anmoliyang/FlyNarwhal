@@ -809,26 +809,35 @@ fun PlayerOverlay(
                                             )
                                         )
                                     }
-                                    // 如果当前视频可被直链播放，并且切换的目标画质非原画质，或不可被直链播放的情况下切换到原画质，则调用 media.resetQuality
-                                    if ((!isTargetOriginalQuality && canUseDirectLink) || (!canUseDirectLink && isTargetOriginalQuality)) {
-                                        playerViewModel.updatePlayingInfo(
-                                            cache.copy(
-                                                currentQuality = quality,
-                                                isUseDirectLink = false
+                                    // 如果当前视频可被直链播放，并且切换的目标画质非原画质，或不可被直链播放的情况下切换到原画质，则调用 media.resetQuality。
+                                    // 当前直链播放的视频切换到其他画质不需要调用 media.resetQuality
+                                    if(!cache.isUseDirectLink) {
+                                        if ((!isTargetOriginalQuality && canUseDirectLink) || (!canUseDirectLink && isTargetOriginalQuality)) {
+                                            playerViewModel.updatePlayingInfo(
+                                                cache.copy(
+                                                    currentQuality = quality,
+                                                    isUseDirectLink = false
+                                                )
                                             )
-                                        )
-                                        val request = MediaPRequest(
-                                            req = "media.resetQuality",
-                                            reqId = "${System.currentTimeMillis()}",
-                                            playLink = cache.playLink ?: "",
-                                            quality = MediaPRequest.Quality(
-                                                quality.resolution,
-                                                quality.bitrate
-                                            ),
-                                            startTimestamp = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
-                                            clearCache = true
-                                        )
-                                        mediaPViewModel.resetQuality(request)
+                                            val request = MediaPRequest(
+                                                req = "media.resetQuality",
+                                                reqId = "${System.currentTimeMillis()}",
+                                                playLink = cache.playLink ?: "",
+                                                quality = MediaPRequest.Quality(
+                                                    quality.resolution,
+                                                    quality.bitrate
+                                                ),
+                                                startTimestamp = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                                clearCache = true
+                                            )
+                                            mediaPViewModel.resetQuality(request)
+                                            playerViewModel.updatePlayingInfo(
+                                                cache.copy(
+                                                    currentQuality = quality,
+                                                    isUseDirectLink = false
+                                                )
+                                            )
+                                        }
                                     }
                                 }
                             },
@@ -876,11 +885,6 @@ fun PlayerOverlay(
                                             startTimestamp = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
                                         )
                                         mediaPViewModel.resetSubtitle(request)
-//                                    val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
-//                                    scope.launch {
-//                                        val startPos = mediaPlayer.getCurrentPositionMillis()
-//                                        startPlayback(mediaPlayer, cache.playLink, startPos, MediaExtraFiles())
-//                                    }
                                     }
                                 }
                             },
