@@ -1113,16 +1113,7 @@ private suspend fun playMedia(
         val startPosition: Long = playInfoResponse.ts.toLong() * 1000
 
         // 获取用户信息
-        userInfoViewModel.loadUserInfo()
-        val userInfoState = userInfoViewModel.uiState
-            .filter { it is UiState.Success || it is UiState.Error }
-            .first()
-
-        val userInfo = when (userInfoState) {
-            is UiState.Success -> userInfoState.data
-            is UiState.Error -> throw Exception(userInfoState.message)
-            else -> throw Exception("Unknown Error")
-        }
+        val userInfo = getUserInfo(userInfoViewModel)
 
         // 获取流信息
         val streamInfo = fetchStreamInfo(playInfoResponse, userInfo, streamViewModel)
@@ -1138,42 +1129,18 @@ private suspend fun playMedia(
         val fileStream = streamInfo.fileStream
 
         // 缓存播放信息 (提前初始化，确保LocalFileInfo可用)
-        val cache = PlayingInfoCache(
+        val cache = createPlayingInfoCache(
             streamInfo,
-            "",
             fileStream,
             videoStream,
             audioStream,
             subtitleStream,
-            playInfoResponse.item.guid,
-            streamInfo.qualities,
-            currentAudioStreamList = streamInfo.audioStreams,
-            currentSubtitleStreamList = streamInfo.subtitleStreams
+            playInfoResponse
         )
         playerViewModel.updatePlayingInfo(cache)
 
         // 显示播放器
-        val videoDuration = videoStream.duration * 1000L
-        if (playInfoResponse.type == FnTvMediaType.EPISODE.value) {
-            val season = playInfoResponse.item.parentTitle
-            val episode = "第${playInfoResponse.item.episodeNumber}集"
-            val episodeTitle = playInfoResponse.item.title
-            val subhead =
-                if (episodeTitle.isNullOrEmpty()) "$season · $episode" else "$season · $episode $episodeTitle"
-            playerManager.showPlayer(
-                guid,
-                playInfoResponse.item.tvTitle,
-                subhead,
-                videoDuration,
-                isEpisode = true
-            )
-        } else {
-            playerManager.showPlayer(
-                guid,
-                playInfoResponse.item.title ?: "",
-                duration = videoDuration
-            )
-        }
+        showPlayerUI(playInfoResponse, videoStream, playerManager, guid)
 
         // VLC 播放器对 HDR 颜色空间有兼容问题，强制使用 SDR
         val forcedSdr = if (videoStream.colorRangeType != "SDR") 1 else 0
@@ -1182,64 +1149,32 @@ private suspend fun playMedia(
         val playRequest =
             createPlayRequest(videoStream, fileStream, audioGuid, subtitleGuid, forcedSdr)
 
-        var playLink = ""
-        var effectiveStartPosition = startPosition
-
-        // 检查是否可以使用直链播放
-        val currentQuality = cache.currentQuality ?: streamInfo.qualities.firstOrNull()
-        val originalQuality = streamInfo.qualities.firstOrNull()
-        val isOriginalQuality = currentQuality != null && originalQuality != null &&
-                currentQuality.resolution == originalQuality.resolution &&
-                currentQuality.bitrate == originalQuality.bitrate
-
-        val streamMatchesSelected = videoStream.resolutionType == currentQuality?.resolution &&
-                videoStream.bps == currentQuality.bitrate
-
-        val useDirectLink = videoStream.wrapper == "MP4" &&
-                videoStream.colorRangeType == "SDR" &&
-                isOriginalQuality && streamMatchesSelected
-
-        if (useDirectLink) {
-            logger.i("满足直链播放条件: wrapper=MP4, colorRangeType=SDR, isOriginalQuality=true")
-            val (link, start) = getDirectPlayLink(
-                cache.currentVideoStream.mediaGuid,
-                startPosition,
-                mp4Parser
-            )
-            playLink = link
-            effectiveStartPosition = start
-            playerViewModel.updatePlayingInfo(cache.copy(isUseDirectLink = true))
-        } else {
-            // 获取播放链接
-            try {
-                val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
-                playLink = playResponse.playLink
-            } catch (e: Exception) {
-                if (e.message?.contains("8192") ?: true) {
-                    logger.i("播放接口返回8192，降级使用直链播放")
-                    val (link, start) = getDirectPlayLink(
-                        playInfoResponse.mediaGuid,
-                        startPosition,
-                        mp4Parser
-                    )
-                    playLink = link
-                    effectiveStartPosition = start
-                }
-            }
-        }
+        // 获取播放链接
+        val playLinkResult = resolvePlayLink(
+            playRequest,
+            cache,
+            streamInfo,
+            startPosition,
+            mp4Parser,
+            playPlayViewModel,
+            playInfoResponse
+        )
 
         // 缓存播放信息
-        val finalCache = cache.copy(playLink = playLink)
+        val finalCache = cache.copy(
+            playLink = playLinkResult.playLink,
+            isUseDirectLink = playLinkResult.isDirectLink
+        )
         playerViewModel.updatePlayingInfo(finalCache)
 
-        logger.i("startPosition: $startPosition, effectiveStartPosition: $effectiveStartPosition")
+        logger.i("startPosition: $startPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
         // 设置字幕
         val extraFiles = subtitleStream?.let {
             val mediaExtraFiles = getMediaExtraFiles(it)
             mediaExtraFiles
         } ?: MediaExtraFiles()
         // 启动播放器
-        startPlayback(player, playLink, effectiveStartPosition, extraFiles)
+        startPlayback(player, playLinkResult.playLink, playLinkResult.effectiveStartPosition, extraFiles)
         // 调用playRecord接口
         callPlayRecord(
 //            itemGuid = guid,
@@ -1377,6 +1312,126 @@ private suspend fun startPlayback(
 
     logger.i("startPlayback startPosition: $startPosition")
     player.seekTo(startPosition)
+}
+
+private data class PlayLinkResult(
+    val playLink: String,
+    val effectiveStartPosition: Long,
+    val isDirectLink: Boolean
+)
+
+private suspend fun getUserInfo(userInfoViewModel: UserInfoViewModel): UserInfoResponse {
+    userInfoViewModel.loadUserInfo()
+    val userInfoState = userInfoViewModel.uiState
+        .filter { it is UiState.Success || it is UiState.Error }
+        .first()
+
+    return when (userInfoState) {
+        is UiState.Success -> userInfoState.data
+        is UiState.Error -> throw Exception(userInfoState.message)
+        else -> throw Exception("Unknown Error")
+    }
+}
+
+private fun createPlayingInfoCache(
+    streamInfo: StreamResponse,
+    fileStream: FileInfo,
+    videoStream: VideoStream,
+    audioStream: AudioStream,
+    subtitleStream: SubtitleStream?,
+    playInfoResponse: PlayInfoResponse
+): PlayingInfoCache {
+    return PlayingInfoCache(
+        streamInfo,
+        "",
+        fileStream,
+        videoStream,
+        audioStream,
+        subtitleStream,
+        playInfoResponse.item.guid,
+        streamInfo.qualities,
+        currentAudioStreamList = streamInfo.audioStreams,
+        currentSubtitleStreamList = streamInfo.subtitleStreams
+    )
+}
+
+private fun showPlayerUI(
+    playInfoResponse: PlayInfoResponse,
+    videoStream: VideoStream,
+    playerManager: PlayerManager,
+    guid: String
+) {
+    val videoDuration = videoStream.duration * 1000L
+    if (playInfoResponse.type == FnTvMediaType.EPISODE.value) {
+        val season = playInfoResponse.item.parentTitle
+        val episode = "第${playInfoResponse.item.episodeNumber}集"
+        val episodeTitle = playInfoResponse.item.title
+        val subhead =
+            if (episodeTitle.isNullOrEmpty()) "$season · $episode" else "$season · $episode $episodeTitle"
+        playerManager.showPlayer(
+            guid,
+            playInfoResponse.item.tvTitle,
+            subhead,
+            videoDuration,
+            isEpisode = true
+        )
+    } else {
+        playerManager.showPlayer(
+            guid,
+            playInfoResponse.item.title ?: "",
+            duration = videoDuration
+        )
+    }
+}
+
+private suspend fun resolvePlayLink(
+    playRequest: PlayPlayRequest,
+    cache: PlayingInfoCache,
+    streamInfo: StreamResponse,
+    startPosition: Long,
+    mp4Parser: Mp4Parser,
+    playPlayViewModel: PlayPlayViewModel,
+    playInfoResponse: PlayInfoResponse
+): PlayLinkResult {
+    val currentQuality = cache.currentQuality ?: streamInfo.qualities.firstOrNull()
+    val originalQuality = streamInfo.qualities.firstOrNull()
+    val isOriginalQuality = currentQuality != null && originalQuality != null &&
+            currentQuality.resolution == originalQuality.resolution &&
+            currentQuality.bitrate == originalQuality.bitrate
+
+    val videoStream = cache.currentVideoStream
+    val streamMatchesSelected = videoStream.resolutionType == currentQuality?.resolution &&
+            videoStream.bps == currentQuality.bitrate
+
+    val useDirectLink = videoStream.wrapper == "MP4" &&
+            videoStream.colorRangeType == "SDR" &&
+            isOriginalQuality && streamMatchesSelected
+
+    if (useDirectLink) {
+        logger.i("满足直链播放条件: wrapper=MP4, colorRangeType=SDR, isOriginalQuality=true")
+        val (link, start) = getDirectPlayLink(
+            videoStream.mediaGuid,
+            startPosition,
+            mp4Parser
+        )
+        return PlayLinkResult(link, start, isDirectLink = true)
+    } else {
+        try {
+            val playResponse = playPlayViewModel.loadDataAndWait(playRequest)
+            return PlayLinkResult(playResponse.playLink, startPosition, isDirectLink = false)
+        } catch (e: Exception) {
+            if (e.message?.contains("8192") == true) {
+                logger.i("播放接口返回8192，降级使用直链播放")
+                val (link, start) = getDirectPlayLink(
+                    playInfoResponse.mediaGuid,
+                    startPosition,
+                    mp4Parser
+                )
+                return PlayLinkResult(link, start, isDirectLink = false)
+            }
+            throw e
+        }
+    }
 }
 
 private fun handlePlayerKeyEvent(
