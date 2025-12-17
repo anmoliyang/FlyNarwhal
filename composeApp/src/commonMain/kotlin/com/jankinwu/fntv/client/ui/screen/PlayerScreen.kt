@@ -183,12 +183,13 @@ class PlayerManager {
         mediaTitle: String,
         subhead: String = "",
         duration: Long = 0L,
-        isEpisode: Boolean = false
+        isEpisode: Boolean = false,
+        isLoading: Boolean = false
     ) {
         playerState = PlayerState(
             isVisible = true,
             isUiVisible = true,
-            isLoading = false,
+            isLoading = isLoading,
             itemGuid = itemGuid,
             mediaTitle = mediaTitle,
             subhead = subhead,
@@ -1562,12 +1563,16 @@ private suspend fun startPlayback(
 //        headers["Authorization"] = AccountDataCache.authorization
         val extraFilesStr = PlayerScreen.mapper.writeValueAsString(extraFiles)
         logger.i("play param: headers: $headers, playUri: $baseUrl$playLink, extraFiles: $extraFilesStr")
-        player.playUri("$baseUrl$playLink", headers, extraFiles)
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            player.playUri("$baseUrl$playLink", headers, extraFiles)
+        }
     } else {
-        player.playUri(
-            "$baseUrl$playLink",
-            extraFiles = extraFiles
-        )
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            player.playUri(
+                "$baseUrl$playLink",
+                extraFiles = extraFiles
+            )
+        }
     }
     if (!isDirectLink) {
         delay(1000) // 等待播放器初始化
@@ -1676,13 +1681,15 @@ private fun showPlayerUI(
             playInfoResponse.item.tvTitle,
             subhead,
             videoDuration,
-            isEpisode = true
+            isEpisode = true,
+            isLoading = true
         )
     } else {
         playerManager.showPlayer(
             guid,
             playInfoResponse.item.title ?: "",
-            duration = videoDuration
+            duration = videoDuration,
+            isLoading = true
         )
     }
 }
