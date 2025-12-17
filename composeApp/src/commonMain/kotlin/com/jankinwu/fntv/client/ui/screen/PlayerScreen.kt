@@ -273,6 +273,9 @@ fun PlayerOverlay(
     LaunchedEffect(uiVisible) {
         playerManager.setUiVisible(uiVisible)
     }
+    // Window Aspect Ratio State
+    var windowAspectRatio by remember { mutableStateOf(AppSettingsStore.playerWindowAspectRatio) }
+
     var isCursorVisible by remember { mutableStateOf(true) }
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -605,13 +608,13 @@ fun PlayerOverlay(
     }
 
     // Dynamic Resize based on Video
-    LaunchedEffect(playingInfoCache?.currentVideoStream) {
+    LaunchedEffect(playingInfoCache?.currentVideoStream, windowAspectRatio) {
         val videoStream = playingInfoCache?.currentVideoStream
         if (videoStream != null && !AppSettingsStore.playerIsFullscreen && windowState.placement != WindowPlacement.Fullscreen) {
             val baseWidth = AppSettingsStore.playerWindowWidth
             val baseHeight = AppSettingsStore.playerWindowHeight
 
-            val optimalSize = calculateOptimalPlayerWindowSize(videoStream, baseWidth, baseHeight)
+            val optimalSize = calculateOptimalPlayerWindowSize(videoStream, baseWidth, baseHeight, windowAspectRatio)
             if (optimalSize != null) {
                 isProgrammaticResize = true
                 windowState.size = optimalSize
@@ -836,7 +839,11 @@ fun PlayerOverlay(
                         subtitleToDelete = subtitle
                         showDeleteSubtitleDialog = true
                     },
-                    onLastVolumeChange = { lastVolume = it }
+                    onLastVolumeChange = { lastVolume = it },
+                    onWindowAspectRatioChanged = {
+                        windowAspectRatio = it
+                        AppSettingsStore.playerWindowAspectRatio = it
+                    }
                 )
             }
 
@@ -962,7 +969,8 @@ fun PlayerControlRow(
     onSettingsMenuHoverChanged: ((Boolean) -> Unit)? = null,
     onRequestDeleteSubtitle: ((SubtitleStream) -> Unit)? = null,
     lastVolume: Float = 0f,
-    onLastVolumeChange: (Float) -> Unit = {}
+    onLastVolumeChange: (Float) -> Unit = {},
+    onWindowAspectRatioChanged: (String) -> Unit = {}
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1087,6 +1095,7 @@ fun PlayerControlRow(
                 onAudioSelected = { audio ->
                     onAudioSelected?.invoke(audio)
                 },
+                onWindowAspectRatioChanged = onWindowAspectRatioChanged,
                 modifier = Modifier.padding(start = 12.dp),
                 onHoverStateChanged = onSettingsMenuHoverChanged
             )
@@ -1560,46 +1569,57 @@ private suspend fun resolvePlayLink(
 private fun calculateOptimalPlayerWindowSize(
     videoStream: VideoStream,
     baseWidth: Float,
-    baseHeight: Float
+    baseHeight: Float,
+    aspectRatioSetting: String = "AUTO"
 ): DpSize? {
     val videoW = videoStream.width.toFloat()
     val videoH = videoStream.height.toFloat()
 
     if (videoW <= 0 || videoH <= 0) return null
 
-    // 优先使用 displayAspectRatio 计算宽高比，解决非 1:1 像素比视频的黑边问题
-    val videoAR = parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
+    // Determine target aspect ratio
+    val targetAspectRatio = when (aspectRatioSetting) {
+        "4:3" -> 4f / 3f
+        "16:9" -> 16f / 9f
+        "21:9" -> 21f / 9f
+        else -> parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
+    }
 
     var targetH = baseHeight
-    var targetW = targetH * videoAR
+    var targetW = baseWidth
 
-    // Constraints: +/- 30% of Base (Adjusted to +/- 50% based on recent context)
+    val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
+
+    // Compensation only applies in AUTO mode
+    val compensation = if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
+
+    // Logic to expand window rather than shrink content
+    if (targetAspectRatio > currentAspectRatio) {
+        // Wider target: Keep Height, Expand Width
+        targetH = baseHeight
+        targetW = targetH * targetAspectRatio
+        targetW += compensation
+    } else {
+        // Narrower/Taller target: Keep Width, Expand Height
+        targetW = baseWidth
+        targetH = targetW / targetAspectRatio
+        // No width compensation needed when keeping baseWidth
+    }
+
+    // Constraints: +/- 50% of Base (Applied to Result)
     val minW = baseWidth * 0.5f
     val maxW = baseWidth * 1.5f
 
-    // If width is out of bounds, try fixing width
-    if (targetW < minW || targetW > maxW) {
-        val targetW2 = baseWidth
-        val targetH2 = targetW2 / videoAR
-
-        val minH = baseHeight * 0.5f
-        val maxH = baseHeight * 1.5f
-
-        if (targetH2 >= minH && targetH2 <= maxH) {
-            targetW = targetW2
-            targetH = targetH2
-        } else {
-            // Both out of bounds?
-            // Just clamp width to nearest bound and adjust height to match AR
-            if (targetW < minW) targetW = minW
-            if (targetW > maxW) targetW = maxW
-            targetH = targetW / videoAR
-        }
+    // Clamp width if needed (though Expand logic usually stays reasonable unless base was very distorted)
+    if (targetW < minW) targetW = minW
+    if (targetW > maxW) targetW = maxW
+    
+    if (targetW != (if (targetAspectRatio > currentAspectRatio) baseHeight * targetAspectRatio + compensation else baseWidth)) {
+         
+         val effectiveW = targetW - compensation
+         targetH = effectiveW / targetAspectRatio
     }
-    
-    // Apply user defined width compensation
-    targetW += AppSettingsStore.playerWindowWidthCompensation
-    
+
     return DpSize(targetW.dp, targetH.dp)
 }
 
@@ -2047,7 +2067,8 @@ fun PlayerBottomBar(
     onSubtitleControlHoverChanged: (Boolean) -> Unit,
     onSettingsMenuHoverChanged: (Boolean) -> Unit,
     onRequestDeleteSubtitle: (SubtitleStream) -> Unit,
-    onLastVolumeChange: (Float) -> Unit
+    onLastVolumeChange: (Float) -> Unit,
+    onWindowAspectRatioChanged: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -2094,7 +2115,8 @@ fun PlayerBottomBar(
                 onSettingsMenuHoverChanged = onSettingsMenuHoverChanged,
                 onRequestDeleteSubtitle = onRequestDeleteSubtitle,
                 lastVolume = lastVolume,
-                onLastVolumeChange = onLastVolumeChange
+                onLastVolumeChange = onLastVolumeChange,
+                onWindowAspectRatioChanged = onWindowAspectRatioChanged
             )
         }
     }
