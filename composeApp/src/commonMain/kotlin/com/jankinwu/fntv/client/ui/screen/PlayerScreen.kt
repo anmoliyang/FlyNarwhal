@@ -144,6 +144,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.unit.DpSize
+import com.jankinwu.fntv.client.data.model.response.EpisodeListResponse
+import com.jankinwu.fntv.client.ui.component.player.EpisodeSelectionFlyout
+import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
+import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -284,11 +288,13 @@ fun PlayerOverlay(
     var isSpeedControlHovered by remember { mutableStateOf(false) }
     var isVolumeControlHovered by remember { mutableStateOf(false) }
     var isQualityControlHovered by remember { mutableStateOf(false) }
+    var isEpisodeControlHovered by remember { mutableStateOf(false) }
+    var isNextEpisodeHovered by remember { mutableStateOf(false) }
     var isSettingsMenuHovered by remember { mutableStateOf(false) }
     var isSubtitleControlHovered by remember { mutableStateOf(false) }
     var lastVolume by remember { mutableFloatStateOf(0f) }
     val isPlayControlHovered =
-        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered
+        isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
 //    val scope = rememberCoroutineScope()
@@ -296,9 +302,94 @@ fun PlayerOverlay(
     val tagViewModel: TagViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
+    val episodeListViewModel: EpisodeListViewModel = koinViewModel()
+    val episodeListState by episodeListViewModel.uiState.collectAsState()
+    var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
+    var isAutoPlay by remember { mutableStateOf(true) }
     val playPlayState by playPlayViewModel.uiState.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
+    val playInfoViewModel: PlayInfoViewModel = koinViewModel()
+    val userInfoViewModel: UserInfoViewModel = koinViewModel()
+    val streamViewModel: StreamViewModel = koinViewModel()
+    val playRecordViewModel: PlayRecordViewModel = koinViewModel()
+    val playState by mediaPlayer.playbackState.collectAsState()
+
+    LaunchedEffect(playingInfoCache?.parentGuid) {
+        val parentGuid = playingInfoCache?.parentGuid
+        if (isEpisode && !parentGuid.isNullOrBlank()) {
+            episodeListViewModel.loadData(parentGuid)
+        }
+    }
+
+    LaunchedEffect(episodeListState) {
+        if (episodeListState is UiState.Success) {
+            episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+        }
+    }
+
+    val playEpisode = remember(
+        mediaPlayer,
+        playInfoViewModel,
+        userInfoViewModel,
+        streamViewModel,
+        playPlayViewModel,
+        playRecordViewModel,
+        playerViewModel,
+        playerManager,
+        mp4Parser
+    ) {
+        { episodeGuid: String ->
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                // 1. Quit current media if needed
+                if (playingInfoCache?.isUseDirectLink == false) {
+                    mediaPViewModel.quit(
+                        MediaPRequest(
+                            playLink = playingInfoCache?.playLink ?: ""
+                        ),
+                        updateState = false
+                    )
+                }
+                
+                // 2. Play new media
+                playMedia(
+                    guid = episodeGuid,
+                    player = mediaPlayer,
+                    playInfoViewModel = playInfoViewModel,
+                    userInfoViewModel = userInfoViewModel,
+                    streamViewModel = streamViewModel,
+                    playPlayViewModel = playPlayViewModel,
+                    playRecordViewModel = playRecordViewModel,
+                    playerViewModel = playerViewModel,
+                    playerManager = playerManager,
+                    mediaGuid = null,
+                    currentAudioGuid = null,
+                    currentSubtitleGuid = null,
+                    mp4Parser = mp4Parser
+                )
+            }
+        }
+    }
+
+    val currentEpisodeIndex = remember(episodeList, playingInfoCache) {
+        episodeList.indexOfFirst { it.guid == playingInfoCache?.itemGuid }
+    }
+    
+    val nextEpisode = remember(episodeList, currentEpisodeIndex) {
+        if (currentEpisodeIndex != -1 && currentEpisodeIndex < episodeList.size - 1) {
+            episodeList[currentEpisodeIndex + 1]
+        } else {
+            null
+        }
+    }
+
+    // Auto Play Logic
+    LaunchedEffect(playState, isAutoPlay, nextEpisode) {
+        if (isAutoPlay && playState == PlaybackState.FINISHED && nextEpisode != null) {
+             playEpisode(nextEpisode.guid)
+        }
+    }
+
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
     val quitMediaState by mediaPViewModel.quitState.collectAsState()
     val iso6391State by tagViewModel.iso6391State.collectAsState()
@@ -374,8 +465,8 @@ fun PlayerOverlay(
     val subtitleUploadViewModel: SubtitleUploadViewModel = koinViewModel()
     val subtitleUploadState by subtitleUploadViewModel.uiState.collectAsState()
 
-    val streamViewModel: StreamViewModel = koinViewModel()
-    val userInfoViewModel: UserInfoViewModel = koinViewModel()
+//    val streamViewModel: StreamViewModel = koinViewModel()
+//    val userInfoViewModel: UserInfoViewModel = koinViewModel()
 
     val refreshSubtitleList =
         remember(playerViewModel, userInfoViewModel, streamViewModel, subtitleDeleteState) {
@@ -483,7 +574,6 @@ fun PlayerOverlay(
     }
 
     val totalDuration = playerManager.playerState.duration
-    val playState by mediaPlayer.playbackState.collectAsState()
     val videoProgress = if (totalDuration > 0) {
         (currentPosition.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
     } else {
@@ -491,9 +581,6 @@ fun PlayerOverlay(
     }
 
     val videoBuffered by remember { mutableFloatStateOf(0f) }
-
-    // 获取播放记录 ViewModel
-    val playRecordViewModel: PlayRecordViewModel = koinViewModel()
 
     // 上一次播放状态
     var lastPlayState by remember { mutableStateOf<PlaybackState?>(null) }
@@ -847,7 +934,21 @@ fun PlayerOverlay(
                     onWindowAspectRatioChanged = {
                         windowAspectRatio = it
                         AppSettingsStore.playerWindowAspectRatio = it
-                    }
+                    },
+                    episodeList = episodeList,
+                    currentEpisodeGuid = playingInfoCache?.itemGuid ?: "",
+                    onEpisodeSelected = { episode -> playEpisode(episode.guid) },
+                    isAutoPlay = isAutoPlay,
+                    onAutoPlayChanged = { isAutoPlay = it },
+                    onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
+                    nextEpisode = nextEpisode,
+                    onNextEpisode = {
+                         if (nextEpisode != null) {
+                             playEpisode(nextEpisode.guid)
+                         }
+                    },
+                    isNextEpisodeHovered = isNextEpisodeHovered,
+                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it }
                 )
             }
 
@@ -974,7 +1075,17 @@ fun PlayerControlRow(
     onRequestDeleteSubtitle: ((SubtitleStream) -> Unit)? = null,
     lastVolume: Float = 0f,
     onLastVolumeChange: (Float) -> Unit = {},
-    onWindowAspectRatioChanged: (String) -> Unit = {}
+    onWindowAspectRatioChanged: (String) -> Unit = {},
+    episodeList: List<EpisodeListResponse> = emptyList(),
+    currentEpisodeGuid: String? = null,
+    onEpisodeSelected: ((EpisodeListResponse) -> Unit)? = null,
+    isAutoPlay: Boolean = false,
+    onAutoPlayChanged: ((Boolean) -> Unit)? = null,
+    onEpisodeControlHoverChanged: ((Boolean) -> Unit)? = null,
+    nextEpisode: EpisodeListResponse? = null,
+    onPlayNextEpisode: (() -> Unit)? = null,
+    isNextEpisodeHovered: Boolean = false,
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1009,6 +1120,7 @@ fun PlayerControlRow(
                             }
                         })
             )
+
             Icon(
                 imageVector = Back10S,
                 contentDescription = "快退10s",
@@ -1035,6 +1147,14 @@ fun PlayerControlRow(
                             mediaPlayer.skip(10_000)
                         })
             )
+            // 下一集按钮
+            if (nextEpisode != null) {
+                NextEpisodePreviewFlyout(
+                    nextEpisode = nextEpisode,
+                    onClick = { onPlayNextEpisode?.invoke() },
+                    onHoverStateChanged = onNextEpisodeHoverChanged
+                )
+            }
             // 当前播放时间 / 总时间
             Text(
                 text = "${FnDataConvertor.formatDurationToDateTime((videoProgress * totalDuration).toLong())} / ${
@@ -1059,6 +1179,17 @@ fun PlayerControlRow(
                     mediaPlayer.features[PlaybackSpeed]?.set(item.value)
                 }
             )
+            if (episodeList.isNotEmpty() && currentEpisodeGuid != null) {
+                EpisodeSelectionFlyout(
+                    episodes = episodeList,
+                    currentEpisodeGuid = currentEpisodeGuid,
+                    parentTitle = playingInfoCache?.parentTitle ?: "",
+                    onEpisodeSelected = { onEpisodeSelected?.invoke(it) },
+                    isAutoPlay = isAutoPlay,
+                    onAutoPlayChanged = { onAutoPlayChanged?.invoke(it) },
+                    onHoverStateChanged = onEpisodeControlHoverChanged
+                )
+            }
             val qualities = playingInfoCache?.currentQualities
             if (qualities != null) {
                 QualityControlFlyout(
@@ -1485,6 +1616,8 @@ private fun createPlayingInfoCache(
         audioStream,
         subtitleStream,
         playInfoResponse.item.guid,
+        playInfoResponse.item.parentGuid,
+        playInfoResponse.item.parentTitle,
         streamInfo.qualities,
         currentQuality = currentQuality,
         currentAudioStreamList = streamInfo.audioStreams,
@@ -2107,7 +2240,17 @@ fun PlayerBottomBar(
     onSettingsMenuHoverChanged: (Boolean) -> Unit,
     onRequestDeleteSubtitle: (SubtitleStream) -> Unit,
     onLastVolumeChange: (Float) -> Unit,
-    onWindowAspectRatioChanged: (String) -> Unit
+    onWindowAspectRatioChanged: (String) -> Unit,
+    episodeList: List<EpisodeListResponse> = emptyList(),
+    currentEpisodeGuid: String = "",
+    onEpisodeSelected: ((EpisodeListResponse) -> Unit)? = null,
+    isAutoPlay: Boolean = false,
+    onAutoPlayChanged: ((Boolean) -> Unit)? = null,
+    onEpisodeControlHoverChanged: ((Boolean) -> Unit)? = null,
+    nextEpisode: EpisodeListResponse? = null,
+    onNextEpisode: (() -> Unit)? = null,
+    isNextEpisodeHovered: Boolean = false,
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -2155,7 +2298,17 @@ fun PlayerBottomBar(
                 onRequestDeleteSubtitle = onRequestDeleteSubtitle,
                 lastVolume = lastVolume,
                 onLastVolumeChange = onLastVolumeChange,
-                onWindowAspectRatioChanged = onWindowAspectRatioChanged
+                onWindowAspectRatioChanged = onWindowAspectRatioChanged,
+                episodeList = episodeList,
+                currentEpisodeGuid = currentEpisodeGuid,
+                onEpisodeSelected = onEpisodeSelected,
+                isAutoPlay = isAutoPlay,
+                onAutoPlayChanged = onAutoPlayChanged,
+                onEpisodeControlHoverChanged = onEpisodeControlHoverChanged,
+                nextEpisode = nextEpisode,
+                onPlayNextEpisode = onNextEpisode,
+                isNextEpisodeHovered = isNextEpisodeHovered,
+                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged
             )
         }
     }
