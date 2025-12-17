@@ -137,6 +137,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -489,7 +490,7 @@ fun PlayerOverlay(
                 if (cache != null) {
                     val startPos = mediaPlayer.getCurrentPositionMillis()
 
-                    var newPlayLink = ""
+                    val newPlayLink = cache.playLink ?: ""
                     val videoStream = cache.currentVideoStream
 
                     // if (!cache.isUseDirectLink) {
@@ -513,7 +514,7 @@ fun PlayerOverlay(
                     val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
                         ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
-                    startPlayback(mediaPlayer, newPlayLink, startPos, extraFiles)
+//                    startPlayback(mediaPlayer, newPlayLink, startPos, extraFiles)
                 }
                 mediaPViewModel.clearError()
             }
@@ -743,8 +744,6 @@ fun PlayerOverlay(
                                 currentBitrate = bitrate
                             }
                         )
-//                        scope.launch {
-//                        }
                     },
                     onAudioSelected = { audio ->
                         val cache = playingInfoCache
@@ -1379,7 +1378,7 @@ private suspend fun startPlayback(
     if (!isDirectLink) {
         delay(1000) // 等待播放器初始化
     } else {
-        delay(500) // 延迟500ms，等待播放器初始化
+        delay(200)
     }
     player.features[PlaybackSpeed]?.set(1.0f)
     // 恢复音量
