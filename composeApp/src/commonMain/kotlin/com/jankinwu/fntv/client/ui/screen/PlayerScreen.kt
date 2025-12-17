@@ -293,6 +293,8 @@ fun PlayerOverlay(
     var isSettingsMenuHovered by remember { mutableStateOf(false) }
     var isSubtitleControlHovered by remember { mutableStateOf(false) }
     var lastVolume by remember { mutableFloatStateOf(0f) }
+
+
     val isPlayControlHovered =
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
@@ -314,6 +316,17 @@ fun PlayerOverlay(
     val streamViewModel: StreamViewModel = koinViewModel()
     val playRecordViewModel: PlayRecordViewModel = koinViewModel()
     val playState by mediaPlayer.playbackState.collectAsState()
+
+    LaunchedEffect(playingInfoCache?.itemGuid) {
+        isProgressBarHovered = false
+        isSpeedControlHovered = false
+        isVolumeControlHovered = false
+        isQualityControlHovered = false
+        isEpisodeControlHovered = false
+        isNextEpisodeHovered = false
+        isSettingsMenuHovered = false
+        isSubtitleControlHovered = false
+    }
 
     LaunchedEffect(playingInfoCache?.parentGuid) {
         val parentGuid = playingInfoCache?.parentGuid
@@ -1182,11 +1195,11 @@ fun PlayerControlRow(
                     mediaPlayer.features[PlaybackSpeed]?.set(item.value)
                 }
             )
-            if (episodeList.isNotEmpty() && currentEpisodeGuid != null) {
+            if (episodeList.isNotEmpty() && currentEpisodeGuid != null && playingInfoCache?.isEpisode == true) {
                 EpisodeSelectionFlyout(
                     episodes = episodeList,
                     currentEpisodeGuid = currentEpisodeGuid,
-                    parentTitle = playingInfoCache?.parentTitle ?: "",
+                    parentTitle = playingInfoCache.parentTitle ?: "",
                     onEpisodeSelected = { onEpisodeSelected?.invoke(it) },
                     isAutoPlay = isAutoPlay,
                     onAutoPlayChanged = { onAutoPlayChanged?.invoke(it) },
@@ -1198,8 +1211,8 @@ fun PlayerControlRow(
                 QualityControlFlyout(
                     modifier = Modifier,
                     qualities = qualities,
-                    currentResolution = playingInfoCache?.currentQuality?.resolution ?: "",
-                    currentBitrate = playingInfoCache?.currentQuality?.bitrate,
+                    currentResolution = playingInfoCache.currentQuality?.resolution ?: "",
+                    currentBitrate = playingInfoCache.currentQuality?.bitrate,
                     yOffset = 65,
                     onHoverStateChanged = onQualityControlHoverChanged,
                     onQualitySelected = {
@@ -1624,7 +1637,8 @@ private fun createPlayingInfoCache(
         streamInfo.qualities,
         currentQuality = currentQuality,
         currentAudioStreamList = streamInfo.audioStreams,
-        currentSubtitleStreamList = streamInfo.subtitleStreams
+        currentSubtitleStreamList = streamInfo.subtitleStreams,
+        isEpisode = playInfoResponse.type == FnTvMediaType.EPISODE.value
     )
 }
 

@@ -216,11 +216,17 @@ fun PlayerSettingsMenu(
                                 onAudioSelected(it)
                                 isExpanded = false
                                 currentScreen = "Main"
+                                if (!isButtonHovered) {
+                                    onHoverStateChanged?.invoke(false)
+                                }
                             },
                             onWindowAspectRatioChanged = {
                                 onWindowAspectRatioChanged(it)
                                 isExpanded = false
                                 currentScreen = "Main"
+                                if (!isButtonHovered) {
+                                    onHoverStateChanged?.invoke(false)
+                                }
                             }
                         )
                     }

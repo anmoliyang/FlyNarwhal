@@ -26,5 +26,6 @@ data class PlayingInfoCache(
     val currentQuality: QualityResponse? = null,
     val currentAudioStreamList: List<AudioStream>? = null,
     var currentSubtitleStreamList: List<SubtitleStream>? = null,
-    var isUseDirectLink: Boolean = false
+    var isUseDirectLink: Boolean = false,
+    var isEpisode: Boolean = false,
 )

@@ -114,7 +114,13 @@ fun NextEpisodePreviewFlyout(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
-                onClick = onClick
+                onClick = {
+                    onClick()
+                    isExpanded = false
+                    if (!isButtonHovered) {
+                        onHoverStateChanged?.invoke(false)
+                    }
+                }
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -127,7 +133,7 @@ fun NextEpisodePreviewFlyout(
 
         if (showPopup) {
             Popup(
-                offset = IntOffset(0, -65),
+                offset = IntOffset(0, -70),
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,
@@ -151,7 +157,13 @@ fun NextEpisodePreviewFlyout(
                             popupHovered = false
                             hideFlyoutWithDelay()
                         }
-                        .clickable(onClick = onClick)
+                        .clickable(onClick = {
+                            onClick()
+                            isExpanded = false
+                            if (!isButtonHovered) {
+                                onHoverStateChanged?.invoke(false)
+                            }
+                        })
                 ) {
                     FlyoutWithAnimation(
                         isExpanded = isExpanded,
@@ -214,14 +226,14 @@ fun NextEpisodeContent(episode: EpisodeListResponse) {
         shape = FlyoutShape,
         color = FlyoutBackgroundColor,
         border = BorderStroke(1.dp, FlyoutBorderColor),
-        modifier = Modifier.width(280.dp)
+        modifier = Modifier.width(253.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             // Thumbnail
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(157.dp) // 16:9
+                    .height(130.dp) // 16:9
                     .clip(RoundedCornerShape(8.dp))
             ) {
                 SubcomposeAsyncImage(

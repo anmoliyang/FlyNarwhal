@@ -146,7 +146,7 @@ fun EpisodeSelectionFlyout(
 
         if (showPopup) {
             Popup(
-                offset = IntOffset(-20, -65),
+                offset = IntOffset(-0, -65),
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,
@@ -186,6 +186,9 @@ fun EpisodeSelectionFlyout(
                             onEpisodeSelected = {
                                 onEpisodeSelected(it)
                                 isExpanded = false
+                                if (!isButtonHovered) {
+                                    onHoverStateChanged?.invoke(false)
+                                }
                             },
                             isAutoPlay = isAutoPlay,
                             onAutoPlayChanged = onAutoPlayChanged
