@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -432,10 +433,21 @@ fun PlayerOverlay(
         if (playPlayState is UiState.Success) {
             (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
                 val newPlayLink = playResponse.playLink
-                playerViewModel.updatePlayingInfo(playingInfoCache?.copy(playLink = newPlayLink, isUseDirectLink = false))
-                val extraFiles = playingInfoCache?.currentSubtitleStream?.let { getMediaExtraFiles(it) }
-                    ?: MediaExtraFiles()
-                startPlayback(mediaPlayer, newPlayLink, mediaPlayer.getCurrentPositionMillis(), extraFiles)
+                playerViewModel.updatePlayingInfo(
+                    playingInfoCache?.copy(
+                        playLink = newPlayLink,
+                        isUseDirectLink = false
+                    )
+                )
+                val extraFiles =
+                    playingInfoCache?.currentSubtitleStream?.let { getMediaExtraFiles(it) }
+                        ?: MediaExtraFiles()
+                startPlayback(
+                    mediaPlayer,
+                    newPlayLink,
+                    mediaPlayer.getCurrentPositionMillis(),
+                    extraFiles
+                )
             }
         }
     }
@@ -465,18 +477,6 @@ fun PlayerOverlay(
             val response =
                 (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
             if (response != null && response.result == "succ") {
-//                val cache = playingInfoCache
-//                if (cache != null) {
-//                    val startPos = mediaPlayer.getCurrentPositionMillis()
-//
-//                    val newPlayLink = cache.playLink ?: ""
-//                    val videoStream = cache.currentVideoStream
-//
-//                    val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
-//                        ?: MediaExtraFiles()
-//                    mediaPlayer.stopPlayback()
-//                    startPlayback(mediaPlayer, newPlayLink, startPos, extraFiles)
-//                }
                 mediaPViewModel.clearError()
             }
         }
@@ -614,7 +614,12 @@ fun PlayerOverlay(
             val baseWidth = AppSettingsStore.playerWindowWidth
             val baseHeight = AppSettingsStore.playerWindowHeight
 
-            val optimalSize = calculateOptimalPlayerWindowSize(videoStream, baseWidth, baseHeight, windowAspectRatio)
+            val optimalSize = calculateOptimalPlayerWindowSize(
+                videoStream,
+                baseWidth,
+                baseHeight,
+                windowAspectRatio
+            )
             if (optimalSize != null) {
                 isProgrammaticResize = true
                 windowState.size = optimalSize
@@ -722,7 +727,6 @@ fun PlayerOverlay(
                     isEpisode = isEpisode,
                     onBack = onBack,
                     mediaPlayer = mediaPlayer,
-                    playerViewModel = playerViewModel,
                     windowState = windowState,
                     platform = platform
                 )
@@ -1442,7 +1446,8 @@ private fun initializeQuality(qualities: List<QualityResponse>?): QualityRespons
     var result: QualityResponse? = null
 
     if (saved != null) {
-        val matched = qualities.find { it.resolution == saved.resolution && (saved.bitrate == null || it.bitrate == saved.bitrate) }
+        val matched =
+            qualities.find { it.resolution == saved.resolution && (saved.bitrate == null || it.bitrate == saved.bitrate) }
         if (matched != null) {
             result = matched
         } else {
@@ -1591,7 +1596,8 @@ private fun calculateOptimalPlayerWindowSize(
     val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
 
     // Compensation only applies in AUTO mode
-    val compensation = if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
+    val compensation =
+        if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
 
     // Logic to expand window rather than shrink content
     if (targetAspectRatio > currentAspectRatio) {
@@ -1613,11 +1619,11 @@ private fun calculateOptimalPlayerWindowSize(
     // Clamp width if needed (though Expand logic usually stays reasonable unless base was very distorted)
     if (targetW < minW) targetW = minW
     if (targetW > maxW) targetW = maxW
-    
+
     if (targetW != (if (targetAspectRatio > currentAspectRatio) baseHeight * targetAspectRatio + compensation else baseWidth)) {
-         
-         val effectiveW = targetW - compensation
-         targetH = effectiveW / targetAspectRatio
+
+        val effectiveW = targetW - compensation
+        targetH = effectiveW / targetAspectRatio
     }
 
     return DpSize(targetW.dp, targetH.dp)
@@ -1781,8 +1787,10 @@ private fun handleQualitySelection(
 
         val canUseDirectLink = videoStream.wrapper == "MP4" &&
                 videoStream.colorRangeType == "SDR"
-        logger.i("change quality to: ${quality.resolution}, useDirectLink: ${playingInfoCache.isUseDirectLink}, " +
-                "originalQuality: ${originalQuality}, canUseDirectLink: ${canUseDirectLink}, isTargetOriginalQuality: $isTargetOriginalQuality")
+        logger.i(
+            "change quality to: ${quality.resolution}, useDirectLink: ${playingInfoCache.isUseDirectLink}, " +
+                    "originalQuality: ${originalQuality}, canUseDirectLink: ${canUseDirectLink}, isTargetOriginalQuality: $isTargetOriginalQuality"
+        )
         // If currently not using direct link, and video can be direct linked, and target quality is original, call media.quit
         if (!playingInfoCache.isUseDirectLink && isTargetOriginalQuality && canUseDirectLink) {
             logger.i("switch to direct link")
@@ -1854,6 +1862,7 @@ private fun handleQualitySelection(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerTopBar(
     mediaTitle: String,
@@ -1861,10 +1870,12 @@ fun PlayerTopBar(
     isEpisode: Boolean,
     onBack: () -> Unit,
     mediaPlayer: MediampPlayer,
-    playerViewModel: PlayerViewModel,
     windowState: WindowState,
     platform: Platform
 ) {
+    val mediaPViewModel: MediaPViewModel = koinViewModel()
+    val playerViewModel: PlayerViewModel = koinViewModel()
+    val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
     if (platform is Platform.MacOS) {
         Box(
             modifier = Modifier
@@ -1924,22 +1935,50 @@ fun PlayerTopBar(
             horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = ArrowLeft,
-                contentDescription = "返回",
-                tint = Color.White,
+            var isHovered by remember { mutableStateOf(false) }
+            Box(
                 modifier = Modifier
-                    .size(20.dp)
-                    .clickable(onClick = {
-                        mediaPlayer.stopPlayback()
-                        // 清除缓存
-                        playerViewModel.updatePlayingInfo(null)
-                        onBack()
-                        if (windowState.placement == WindowPlacement.Fullscreen) {
-                            windowState.placement = WindowPlacement.Floating
+                    .size(30.dp)
+                    .background(
+                        color = if (isHovered) Color.White.copy(alpha = 0.1f) else Color.Transparent,
+                        shape = CircleShape
+                    )
+                    .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+                    .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {
+                            mediaPlayer.stopPlayback()
+                            playingInfoCache?.isUseDirectLink?.let {
+                                if (!it) {
+                                    mediaPViewModel.quit(
+                                        MediaPRequest(
+                                            playLink = playingInfoCache?.playLink
+                                                ?: ""
+                                        ),
+                                        updateState = false
+                                    )
+                                }
+                            }
+                            // 清除缓存
+                            playerViewModel.updatePlayingInfo(null)
+                            onBack()
+                            if (windowState.placement == WindowPlacement.Fullscreen) {
+                                windowState.placement = WindowPlacement.Floating
+                            }
                         }
-                    })
-            )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = ArrowLeft,
+                    contentDescription = "返回",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .size(20.dp)
+                )
+            }
             if (isEpisode) {
                 Text(
                     text = buildEpisodeTitle(mediaTitle, subhead),

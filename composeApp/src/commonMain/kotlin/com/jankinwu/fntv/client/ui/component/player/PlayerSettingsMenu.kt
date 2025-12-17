@@ -438,7 +438,7 @@ fun WindowAspectRatioSettingsScreen(
     val currentRatio = AppSettingsStore.playerWindowAspectRatio
     val options = listOf("AUTO", "4:3", "16:9", "21:9")
     val optionLabels = mapOf(
-        "AUTO" to "默认",
+        "AUTO" to "自动",
         "4:3" to "4:3",
         "16:9" to "16:9",
         "21:9" to "21:9"
