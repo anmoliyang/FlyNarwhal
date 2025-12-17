@@ -146,7 +146,7 @@ fun EpisodeSelectionFlyout(
 
         if (showPopup) {
             Popup(
-                offset = IntOffset(-0, -65),
+                offset = IntOffset(-0, -70),
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,

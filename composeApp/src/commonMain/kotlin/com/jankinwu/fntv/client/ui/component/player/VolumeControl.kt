@@ -119,7 +119,7 @@ fun VolumeControl(
     ) {
         if (showPopup) {
             Popup(
-                offset = IntOffset(0, -30), // 向上偏移，根据需要调整
+                offset = IntOffset(0, -40), // 向上偏移，根据需要调整
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,

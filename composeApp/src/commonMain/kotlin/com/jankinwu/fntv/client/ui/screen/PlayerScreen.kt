@@ -1200,7 +1200,7 @@ fun PlayerControlRow(
         ) {
             // 倍速
             SpeedControlFlyout(
-                yOffset = 65,
+                yOffset = 70,
                 onHoverStateChanged = onSpeedControlHoverChanged,
                 onSpeedSelected = { item ->
                     mediaPlayer.features[PlaybackSpeed]?.set(item.value)
@@ -1224,7 +1224,7 @@ fun PlayerControlRow(
                     qualities = qualities,
                     currentResolution = playingInfoCache.currentQuality?.resolution ?: "",
                     currentBitrate = playingInfoCache.currentQuality?.bitrate,
-                    yOffset = 65,
+                    yOffset = 70,
                     onHoverStateChanged = onQualityControlHoverChanged,
                     onQualitySelected = {
                         onQualitySelected?.invoke(it)
