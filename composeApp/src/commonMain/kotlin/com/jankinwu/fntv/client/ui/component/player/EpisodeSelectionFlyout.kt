@@ -146,7 +146,7 @@ fun EpisodeSelectionFlyout(
 
         if (showPopup) {
             Popup(
-                offset = IntOffset(-0, -65),
+                offset = IntOffset(-0, -70),
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,
@@ -315,7 +315,7 @@ fun EpisodeListContent(
                 listState = lazyListState,
                 modifier = Modifier.height(400.dp),
                 scrollbarWidth = 2.dp,
-                scrollbarOffsetX = 3.dp
+                scrollbarOffsetX = (-2).dp
             ) {
                 items(episodes) { episode ->
                     EpisodeItem(

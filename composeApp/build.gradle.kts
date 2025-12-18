@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.0.11"
+val appVersion = "1.0.12"
 val appVersionSuffix = "Alpha"
 
 val platformStr = when {
@@ -168,6 +168,7 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
+            implementation(libs.multiplatform.markdown.renderer)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

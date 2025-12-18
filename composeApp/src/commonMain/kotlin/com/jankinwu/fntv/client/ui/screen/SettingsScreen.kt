@@ -33,6 +33,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -49,6 +51,7 @@ import com.jankinwu.fntv.client.icons.PreRelease
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
+import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
@@ -80,7 +83,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SettingsScreen(componentNavigator: ComponentNavigator) {
+fun SettingsScreen(navigator: ComponentNavigator) {
     val logoutViewModel: LogoutViewModel = koinViewModel()
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
@@ -127,11 +130,17 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                 focusManager.clearFocus()
             }
     ) {
+        BackButton(
+            navigator,
+            modifier = Modifier,
+            iconColor = FluentTheme.colors.text.text.primary,
+            hasShadow = false
+        )
         Text(
             text = "设置",
-            style = FluentTheme.typography.titleLarge,
+            style = FluentTheme.typography.title,
             modifier = Modifier.alignHorizontalSpace()
-                .padding(top = 36.dp)
+//                .padding(top = 36.dp)
         )
         ScrollbarContainer(
             adapter = rememberScrollbarAdapter(scrollState)
@@ -423,11 +432,22 @@ fun SettingsScreen(componentNavigator: ComponentNavigator) {
                         Text("Fntv Client Multiplatform")
                     },
                     icon = {
+                        val colorMatrix = floatArrayOf(
+                            -1f, 0f, 0f, 0f, 255f,
+                            0f, -1f, 0f, 0f, 255f,
+                            0f, 0f, -1f, 0f, 255f,
+                            0f, 0f, 0f, 1f, 0f
+                        )
                         Image(
                             painter = painterResource(Res.drawable.github_logo),
                             contentDescription = null,
                             modifier = Modifier
-                                .size(18.dp)
+                                .size(18.dp),
+                            colorFilter = if (store.darkMode) ColorFilter.colorMatrix(
+                                ColorMatrix(
+                                    colorMatrix
+                                )
+                            ) else null
                         )
                     },
                     caption = {

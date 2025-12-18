@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ProgressIndicatorDefaults
@@ -15,11 +17,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.manager.UpdateInfo
 import com.jankinwu.fntv.client.manager.UpdateStatus
+import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownColor
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
@@ -44,6 +51,7 @@ fun UpdateDialog(
             size = DialogSize.Standard
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
+                val lazyListState = rememberLazyListState()
                 when (status) {
                     is UpdateStatus.Checking -> {
                         Text("检查更新中...", style = FluentTheme.typography.bodyLarge)
@@ -53,10 +61,25 @@ fun UpdateDialog(
                         Text("更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
                         Text("有新版本可以更新。最新版本为 ${status.info.version}，当前版本为 ${BuildConfig.VERSION_NAME}")
-                        Spacer(Modifier.height(12.dp))
-                        Text("【更新内容】")
+                        Spacer(Modifier.height(16.dp))
+                        Text("【更新内容】", style = LocalTypography.current.bodyStrong, fontSize = 15.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text(status.info.releaseNotes)
+                        AnimatedScrollbarLazyColumn(
+                            listState = lazyListState,
+                            modifier = Modifier.height(290.dp),
+                            scrollbarWidth = 2.dp,
+                            scrollbarOffsetX = (-2).dp
+                        ) {
+                            item {
+                                Markdown(
+                                    status.info.releaseNotes,
+                                    markdownColor(text = FluentTheme.colors.text.text.primary),
+                                    modifier = Modifier
+                                        .wrapContentHeight()
+                                        .padding(horizontal = 8.dp)
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
@@ -66,7 +89,9 @@ fun UpdateDialog(
                             Spacer(Modifier.width(8.dp))
                             DialogSecondaryButton("稍后再说", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("下载更新", onClick = { onDownload(status.info, false) })
+                            DialogAccentButton(
+                                "下载更新",
+                                onClick = { onDownload(status.info, false) })
                         }
                     }
 
@@ -74,12 +99,30 @@ fun UpdateDialog(
                         Text("更新", style = FluentTheme.typography.subtitle)
                         Spacer(Modifier.height(12.dp))
                         Text("有新版本可以更新。最新版本为 ${status.info.version}，当前版本为 ${BuildConfig.VERSION_NAME}")
-                        Spacer(Modifier.height(12.dp))
-                        Text("【更新内容】")
+                        Spacer(Modifier.height(16.dp))
+                        Text("【更新内容】", style = LocalTypography.current.bodyStrong, fontSize = 15.sp)
                         Spacer(Modifier.height(8.dp))
-                        Text(status.info.releaseNotes)
+                        AnimatedScrollbarLazyColumn(
+                            listState = lazyListState,
+                            modifier = Modifier.height(290.dp).padding(horizontal = 8.dp),
+                            scrollbarWidth = 2.dp,
+                            scrollbarOffsetX = (-2).dp
+                        ) {
+                            item {
+                                Markdown(
+                                    status.info.releaseNotes,
+                                    markdownColor(text = FluentTheme.colors.text.text.primary),
+                                    modifier = Modifier
+                                        .wrapContentHeight()
+                                        .padding(horizontal = 8.dp)
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(24.dp))
-                        Text("安装包已下载，是否立即安装？", style = FluentTheme.typography.bodyStrong)
+                        Text(
+                            "安装包已下载，是否立即安装？",
+                            style = FluentTheme.typography.bodyStrong
+                        )
                         Spacer(Modifier.height(24.dp))
                         Row(
                             horizontalArrangement = Arrangement.End,
@@ -87,7 +130,7 @@ fun UpdateDialog(
                         ) {
                             DialogSecondaryButton("跳过此版本", onClick = { onSkip(status.info) })
                             Spacer(Modifier.width(8.dp))
-                            DialogSecondaryButton("稍后", onClick = onDismiss)
+                            DialogSecondaryButton("稍后安装", onClick = onDismiss)
                             Spacer(Modifier.width(8.dp))
                             DialogAccentButton("退出并安装", onClick = { onInstall(status.info) })
                         }
@@ -140,7 +183,10 @@ fun UpdateDialog(
                     }
 
                     is UpdateStatus.VerificationSuccess -> {
-                        Text("文件完整性校验成功，准备执行安装程序...", style = FluentTheme.typography.bodyLarge)
+                        Text(
+                            "文件完整性校验成功，准备执行安装程序...",
+                            style = FluentTheme.typography.bodyLarge
+                        )
                     }
 
                     is UpdateStatus.VerificationFailed -> {
@@ -152,9 +198,13 @@ fun UpdateDialog(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            DialogSecondaryButton("稍后下载", onClick = { onDeleteAndDismiss(status.info) })
+                            DialogSecondaryButton(
+                                "稍后下载",
+                                onClick = { onDeleteAndDismiss(status.info) })
                             Spacer(Modifier.width(8.dp))
-                            DialogAccentButton("重新下载", onClick = { onDownload(status.info, true) })
+                            DialogAccentButton(
+                                "重新下载",
+                                onClick = { onDownload(status.info, true) })
                         }
                     }
 
