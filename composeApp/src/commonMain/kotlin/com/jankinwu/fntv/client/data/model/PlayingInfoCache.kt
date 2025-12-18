@@ -28,4 +28,5 @@ data class PlayingInfoCache(
     var currentSubtitleStreamList: List<SubtitleStream>? = null,
     var isUseDirectLink: Boolean = false,
     var isEpisode: Boolean = false,
+    var previousSubtitle: SubtitleStream? = null,
 )

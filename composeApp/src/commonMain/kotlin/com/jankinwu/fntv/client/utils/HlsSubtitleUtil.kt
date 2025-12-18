@@ -60,10 +60,10 @@ class HlsSubtitleUtil(
             }
             
             return client.get(fullUrl) {
-                if (AccountDataCache.cookieState.isNotBlank()) {
-                    header("cookie", AccountDataCache.cookieState)
-                    header("Authorization", AccountDataCache.authorization)
-                }
+//                if (AccountDataCache.cookieState.isNotBlank()) {
+//                    header("cookie", AccountDataCache.cookieState)
+//                    header("Authorization", AccountDataCache.authorization)
+//                }
             }.bodyAsText()
         }
 

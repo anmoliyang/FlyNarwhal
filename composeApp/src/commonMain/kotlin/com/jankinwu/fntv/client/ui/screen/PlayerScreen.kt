@@ -496,7 +496,9 @@ fun PlayerOverlay(
                             // Reload HLS subtitle repository to fetch new segments
                             hlsSubtitleUtil?.reload()
                             // Don't restart playback for internal subtitles
-                            shouldStartPlayback = false
+                            if (cache.previousSubtitle?.isExternal == 0) {
+                                shouldStartPlayback = false
+                            }
                         }
                     } catch (e: Exception) {
                         logger.w("ResetSubtitle: Failed to parse m3u8: ${e.message}")
@@ -1050,6 +1052,7 @@ fun PlayerOverlay(
                         if (cache != null) {
                             playerViewModel.updatePlayingInfo(
                                 cache.copy(
+                                    previousSubtitle = cache.currentSubtitleStream,
                                     currentSubtitleStream = subtitle
                                 )
                             )
