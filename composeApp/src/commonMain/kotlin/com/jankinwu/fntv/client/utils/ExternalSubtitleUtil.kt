@@ -219,6 +219,10 @@ class ExternalSubtitleUtil(
                                 val move = parseAssMove(textRaw)
                                 val pos = parseAssPos(textRaw)
                                 val align = parseAssAlign(textRaw) ?: baseStyle.alignment
+                                val fade = parseAssFade(textRaw)
+                                val rotationZ = parseAssRotation(textRaw)
+                                val alpha = parseAssAlpha(textRaw)
+                                val clip = parseAssClip(textRaw)
                                 
                                 val assProps = AssProperties(
                                     playResX = playResX,
@@ -226,7 +230,11 @@ class ExternalSubtitleUtil(
                                     fontSize = baseStyle.fontSize,
                                     alignment = align,
                                     position = pos,
-                                    move = move
+                                    move = move,
+                                    fade = fade,
+                                    rotationZ = rotationZ,
+                                    alpha = alpha,
+                                    clip = clip
                                 )
 
                                 val annotatedString = parseAssText(textRaw, styleName)
@@ -268,6 +276,39 @@ class ExternalSubtitleUtil(
         val regex = Regex("""\\an(\d)""")
         val match = regex.find(text)
         return match?.groupValues?.get(1)?.toIntOrNull()
+    }
+
+    private fun parseAssFade(text: String): AssFade? {
+        // \fad(t1,t2)
+        val regex = Regex("""\\fad\(\s*(\d+)\s*,\s*(\d+)\s*\)""")
+        val match = regex.find(text) ?: return null
+        val (t1, t2) = match.destructured
+        return AssFade(t1.toLong(), t2.toLong())
+    }
+
+    private fun parseAssRotation(text: String): Float? {
+        // \frz<angle> or \fr<angle>
+        val regex = Regex("""\\frz?(-?[\d.]+)""")
+        val match = regex.find(text)
+        return match?.groupValues?.get(1)?.toFloatOrNull()
+    }
+
+    private fun parseAssAlpha(text: String): Float? {
+        // \alpha&H<aa>&
+        val regex = Regex("""\\alpha&H([0-9a-fA-F]{2})&""")
+        val match = regex.find(text)
+        val hex = match?.groupValues?.get(1) ?: return null
+        // 00 = opaque (1.0), FF = transparent (0.0)
+        val alphaVal = hex.toIntOrNull(16) ?: return null
+        return 1f - (alphaVal / 255f)
+    }
+
+    private fun parseAssClip(text: String): AssClip? {
+        // \clip(x1,y1,x2,y2)
+        val regex = Regex("""\\clip\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)""")
+        val match = regex.find(text) ?: return null
+        val (x1, y1, x2, y2) = match.destructured
+        return AssClip(x1.toFloat(), y1.toFloat(), x2.toFloat(), y2.toFloat())
     }
 
     private fun parseAssText(textRaw: String, styleName: String): AnnotatedString {

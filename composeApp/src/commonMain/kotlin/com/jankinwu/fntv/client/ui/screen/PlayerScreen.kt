@@ -38,6 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.key.Key
@@ -1057,52 +1063,133 @@ fun PlayerOverlay(
                                             }
                                         }
                                         .graphicsLayer {
-                                            // Calculate current position frame-perfectly
-                                            // We need to re-calc x and y based on currentRenderTime inside graphicsLayer
-                                            // But props.move parameters are static, only time changes.
-                                            
-                                            var currX = x
-                                            var currY = y
-                                            
-                                            if (props.move != null) {
-                                                val move = props.move
-                                                val t1 = move.t1 ?: 0L
-                                                val t2 = move.t2 ?: (cue.endTime - cue.startTime)
-                                                val progress = (currentRenderTime - cue.startTime).coerceIn(t1, t2).toFloat()
-                                                val duration = (t2 - t1).toFloat()
-                                                val fraction = if (duration > 0) progress / duration else 1f
-                                                
-                                                currX = move.x1 + (move.x2 - move.x1) * fraction
-                                                currY = move.y1 + (move.y2 - move.y1) * fraction
-                                            } else if (props.position != null) {
-                                                currX = props.position.x
-                                                currY = props.position.y
-                                            }
-                                            
-                                            val screenX = currX * scaleX
-                                            val screenY = currY * scaleY
-                                            
-                                            // Apply alignment offset
-                                            // We use `this.size` which gives us the size of the Text composable
-                                            val pWidth = this.size.width
-                                            val pHeight = this.size.height
-                                            
-                                            val offsetX = when (align % 3) {
-                                                1 -> 0f
-                                                2 -> -pWidth / 2f
-                                                0 -> -pWidth.toFloat()
-                                                else -> 0f
-                                            }
-                                            val offsetY = when ((align - 1) / 3) {
-                                                0 -> -pHeight.toFloat()
-                                                1 -> -pHeight / 2f
-                                                2 -> 0f
-                                                else -> 0f
-                                            }
-                                            
-                                            translationX = screenX.dp.toPx() + offsetX
-                                            translationY = screenY.dp.toPx() + offsetY
-                                        }
+                                             // Calculate current position frame-perfectly
+                                             // We need to re-calc x and y based on currentRenderTime inside graphicsLayer
+                                             // But props.move parameters are static, only time changes.
+                                             
+                                             var currX = x
+                                             var currY = y
+                                             
+                                             if (props.move != null) {
+                                                 val move = props.move
+                                                 val t1 = move.t1 ?: 0L
+                                                 val t2 = move.t2 ?: (cue.endTime - cue.startTime)
+                                                 val progress = (currentRenderTime - cue.startTime).coerceIn(t1, t2).toFloat()
+                                                 val duration = (t2 - t1).toFloat()
+                                                 val fraction = if (duration > 0) progress / duration else 1f
+                                                 
+                                                 currX = move.x1 + (move.x2 - move.x1) * fraction
+                                                 currY = move.y1 + (move.y2 - move.y1) * fraction
+                                             } else if (props.position != null) {
+                                                 currX = props.position.x
+                                                 currY = props.position.y
+                                             }
+                                             
+                                             val screenX = currX * scaleX
+                                             val screenY = currY * scaleY
+                                             
+                                             // Apply alignment offset
+                                             // We use `this.size` which gives us the size of the Text composable
+                                             val pWidth = this.size.width
+                                             val pHeight = this.size.height
+                                             
+                                             val offsetX = when (align % 3) {
+                                                 1 -> 0f
+                                                 2 -> -pWidth / 2f
+                                                 0 -> -pWidth.toFloat()
+                                                 else -> 0f
+                                             }
+                                             val offsetY = when ((align - 1) / 3) {
+                                                 0 -> -pHeight.toFloat()
+                                                 1 -> -pHeight / 2f
+                                                 2 -> 0f
+                                                 else -> 0f
+                                             }
+                                             
+                                             translationX = screenX.dp.toPx() + offsetX
+                                             translationY = screenY.dp.toPx() + offsetY
+                                             
+                                             // Apply Rotation
+                                             if (props.rotationZ != null) {
+                                                 rotationZ = props.rotationZ
+                                             }
+                                             
+                                             // Apply Opacity/Alpha
+                                             var finalAlpha = props.alpha ?: 1f
+                                             
+                                             if (props.fade != null) {
+                                                 val fade = props.fade
+                                                 val timeIntoCue = currentRenderTime - cue.startTime
+                                                 val timeRemaining = cue.endTime - currentRenderTime
+                                                 
+                                                 if (timeIntoCue < fade.t1) {
+                                                     finalAlpha *= (timeIntoCue.toFloat() / fade.t1.toFloat()).coerceIn(0f, 1f)
+                                                 } else if (timeRemaining < fade.t2) {
+                                                     finalAlpha *= (timeRemaining.toFloat() / fade.t2.toFloat()).coerceIn(0f, 1f)
+                                                 }
+                                             }
+                                             alpha = finalAlpha
+                                         }
+                                         .then(
+                                             if (props.clip != null) {
+                                                 Modifier.clip(object : Shape {
+                                                     override fun createOutline(
+                                                         size: androidx.compose.ui.geometry.Size,
+                                                         layoutDirection: LayoutDirection,
+                                                         density: Density
+                                                     ): Outline {
+                                                         val clip = props.clip
+
+                                                         
+                                                         val cx1 = clip.x1 * scaleX
+                                                         val cy1 = clip.y1 * scaleY
+                                                         val cx2 = clip.x2 * scaleX
+                                                         val cy2 = clip.y2 * scaleY
+
+                                                         var currX = x
+                                                         var currY = y
+                                                         if (props.position != null) {
+                                                             currX = props.position.x
+                                                             currY = props.position.y
+                                                         }
+                                                         // Ignore move for clip rect calculation for now (assume text is at pos)
+                                                         
+                                                         val screenX = currX * scaleX
+                                                         val screenY = currY * scaleY
+                                                         
+                                                         // Re-calculate alignment offset (same logic)
+                                                         // We need pWidth/pHeight. `size` parameter gives us that!
+                                                         val pWidth = size.width
+                                                         val pHeight = size.height
+                                                         
+                                                         val offsetX = when (align % 3) {
+                                                             1 -> 0f
+                                                             2 -> -pWidth / 2f
+                                                             0 -> -pWidth
+                                                             else -> 0f
+                                                         }
+                                                         val offsetY = when ((align - 1) / 3) {
+                                                             0 -> -pHeight
+                                                             1 -> -pHeight / 2f
+                                                             2 -> 0f
+                                                             else -> 0f
+                                                         }
+                                                         
+                                                         val transX = with(density) { screenX.dp.toPx() } + offsetX
+                                                         val transY = with(density) { screenY.dp.toPx() } + offsetY
+                                                         
+                                                         val localCx1 = with(density) { cx1.dp.toPx() } - transX
+                                                         val localCy1 = with(density) { cy1.dp.toPx() } - transY
+                                                         val localCx2 = with(density) { cx2.dp.toPx() } - transX
+                                                         val localCy2 = with(density) { cy2.dp.toPx() } - transY
+                                                         
+                                                         val path = Path()
+                                                         path.addRect(androidx.compose.ui.geometry.Rect(localCx1, localCy1, localCx2, localCy2))
+                                                         return Outline.Generic(path)
+                                                     }
+                                                 })
+                                             } else Modifier
+                                         )
                                 )
                             } else {
                                 // Default positioning (Bottom Center)
