@@ -165,7 +165,6 @@ import org.openani.mediamp.features.AudioLevelController
 import org.openani.mediamp.features.PlaybackSpeed
 import org.openani.mediamp.features.VideoAspectRatio
 import org.openani.mediamp.source.MediaExtraFiles
-import org.openani.mediamp.source.Subtitle
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.togglePause
 
@@ -435,12 +434,24 @@ fun PlayerOverlay(
             }
         }
 
-    LaunchedEffect(hlsSubtitleUtil) {
+    // External Subtitle Logic
+    val externalSubtitleUtil =
+        remember(playingInfoCache?.currentSubtitleStream) {
+            val subtitle = playingInfoCache?.currentSubtitleStream
+            if (subtitle != null && subtitle.isExternal == 1 && subtitle.format in listOf("srt", "ass", "vtt")) {
+                com.jankinwu.fntv.client.utils.ExternalSubtitleUtil(fnOfficialClient, subtitle)
+            } else {
+                null
+            }
+        }
+
+    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil) {
         hlsSubtitleUtil?.initialize()
+        externalSubtitleUtil?.initialize()
     }
 
     var subtitleText by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(hlsSubtitleUtil, mediaPlayer) {
+    LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil, mediaPlayer) {
         if (hlsSubtitleUtil != null) {
             // Loop 1: Fetch loop (runs on IO, less frequent)
             launch(kotlinx.coroutines.Dispatchers.IO) {
@@ -455,6 +466,14 @@ fun PlayerOverlay(
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
                     subtitleText = hlsSubtitleUtil.getCurrentSubtitle(currentPos)
+                    delay(200)
+                }
+            }
+        } else if (externalSubtitleUtil != null) {
+             launch {
+                while (isActive) {
+                    val currentPos = mediaPlayer.getCurrentPositionMillis()
+                    subtitleText = externalSubtitleUtil.getCurrentSubtitle(currentPos)
                     delay(200)
                 }
             }
@@ -513,15 +532,15 @@ fun PlayerOverlay(
                     actualPlayLink = link
                 }
 
-                if (shouldStartPlayback) {
-                    startPlayback(
-                        mediaPlayer,
-                        actualPlayLink,
-                        startPos,
-                        extraFiles,
-                        isM3u8
-                    )
-                }
+//                if (shouldStartPlayback) {
+//                    startPlayback(
+//                        mediaPlayer,
+//                        actualPlayLink,
+//                        startPos,
+//                        extraFiles,
+//                        isM3u8
+//                    )
+//                }
             }
             mediaPViewModel.clearError()
         }
@@ -1657,10 +1676,12 @@ private fun getMediaExtraFiles(
 
     if (subtitleStream.isExternal == 1) {
         if (subtitleStream.format in listOf("srt", "ass", "vtt")) {
-            val subtitleLink =
-                "${AccountDataCache.getProxyBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
-            val subtitle = Subtitle(subtitleLink)
-            return MediaExtraFiles(listOf(subtitle))
+//            val subtitleLink =
+//                "${AccountDataCache.getProxyBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
+//            val subtitle = Subtitle(subtitleLink)
+//            return MediaExtraFiles(listOf(subtitle))
+            // Handled manually by ExternalSubtitleUtil
+            return MediaExtraFiles()
         }
     }
     return MediaExtraFiles()
@@ -2270,7 +2291,7 @@ fun PlayerTopBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 5.dp),
+                .padding(top = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Box(
