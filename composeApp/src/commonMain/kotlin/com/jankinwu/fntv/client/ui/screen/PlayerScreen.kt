@@ -37,7 +37,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -50,8 +52,10 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -83,6 +87,7 @@ import com.jankinwu.fntv.client.data.model.response.StreamResponse
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.model.response.UserInfoResponse
 import com.jankinwu.fntv.client.data.model.response.VideoStream
+import com.jankinwu.fntv.client.data.network.fnOfficialClient
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
@@ -120,6 +125,7 @@ import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
+import com.jankinwu.fntv.client.utils.HlsSubtitleRepository
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.chooseFile
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
@@ -146,6 +152,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
@@ -369,7 +376,7 @@ fun PlayerOverlay(
                         updateState = false
                     )
                 }
-                
+
                 // 2. Play new media
                 try {
                     playerManager.setLoading(true)
@@ -398,7 +405,7 @@ fun PlayerOverlay(
     val currentEpisodeIndex = remember(episodeList, playingInfoCache) {
         episodeList.indexOfFirst { it.guid == playingInfoCache?.itemGuid }
     }
-    
+
     val nextEpisode = remember(episodeList, currentEpisodeIndex) {
         if (currentEpisodeIndex != -1 && currentEpisodeIndex < episodeList.size - 1) {
             episodeList[currentEpisodeIndex + 1]
@@ -410,7 +417,7 @@ fun PlayerOverlay(
     // Auto Play Logic
     LaunchedEffect(playState, isAutoPlay, nextEpisode) {
         if (isAutoPlay && playState == PlaybackState.FINISHED && nextEpisode != null) {
-             playEpisode(nextEpisode.guid)
+            playEpisode(nextEpisode.guid)
         }
     }
 
@@ -555,13 +562,19 @@ fun PlayerOverlay(
                     )
                 )
                 val extraFiles =
-                    playingInfoCache?.currentSubtitleStream?.let { getMediaExtraFiles(it) }
+                    playingInfoCache?.currentSubtitleStream?.let {
+                        getMediaExtraFiles(
+                            it,
+                            newPlayLink
+                        )
+                    }
                         ?: MediaExtraFiles()
                 startPlayback(
                     mediaPlayer,
                     newPlayLink,
                     mediaPlayer.getCurrentPositionMillis(),
-                    extraFiles
+                    extraFiles,
+                    true // isM3u8
                 )
             }
         }
@@ -578,10 +591,11 @@ fun PlayerOverlay(
                     startPos,
                     mp4Parser
                 )
-                val extraFiles = cache.currentSubtitleStream?.let { getMediaExtraFiles(it) }
-                    ?: MediaExtraFiles()
+                val extraFiles =
+                    cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
+                        ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
-                startPlayback(mediaPlayer, link, start, extraFiles)
+                startPlayback(mediaPlayer, link, start, extraFiles, false) // isM3u8 = false for direct link (usually)
             }
             mediaPViewModel.clearError()
         }
@@ -755,6 +769,46 @@ fun PlayerOverlay(
     }
     // endregion
 
+    // HLS Subtitle Logic
+    val hlsSubtitleRepository =
+        remember(playingInfoCache?.playLink, playingInfoCache?.currentSubtitleStream) {
+            val link = playingInfoCache?.playLink
+            val subtitle = playingInfoCache?.currentSubtitleStream
+            if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
+                HlsSubtitleRepository(fnOfficialClient, link, subtitle)
+            } else {
+                null
+            }
+        }
+
+    LaunchedEffect(hlsSubtitleRepository) {
+        hlsSubtitleRepository?.initialize()
+    }
+
+    var subtitleText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(hlsSubtitleRepository, mediaPlayer) {
+        if (hlsSubtitleRepository != null) {
+            // Loop 1: Fetch loop (runs on IO, less frequent)
+            launch(kotlinx.coroutines.Dispatchers.IO) {
+                while (isActive) {
+                    val currentPos = mediaPlayer.getCurrentPositionMillis()
+                    hlsSubtitleRepository.update(currentPos)
+                    delay(2000) // Trigger update check every 2 seconds
+                }
+            }
+            // Loop 2: Display loop (runs on Main, frequent for sync)
+            launch {
+                while (isActive) {
+                    val currentPos = mediaPlayer.getCurrentPositionMillis()
+                    subtitleText = hlsSubtitleRepository.getCurrentSubtitle(currentPos)
+                    delay(200)
+                }
+            }
+        } else {
+            subtitleText = null
+        }
+    }
+
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -808,6 +862,33 @@ fun PlayerOverlay(
                         uiVisible = true
                         isCursorVisible = true
                     })
+
+            if (!subtitleText.isNullOrBlank()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 64.dp), // Adjust based on control bar height
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Text(
+                        text = subtitleText!!,
+                        style = TextStyle(
+                            color = Color.White,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            shadow = Shadow(
+                                color = Color.Black,
+                                offset = Offset(2f, 2f),
+                                blurRadius = 4f
+                            )
+                        ),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+//                            .background(Color.Black.copy(alpha = 0.3f), shape = RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
 
             if (windowState.placement != WindowPlacement.Fullscreen) {
                 // 添加标题栏占位区域，允许窗口拖动
@@ -970,9 +1051,9 @@ fun PlayerOverlay(
                     onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
                     nextEpisode = nextEpisode,
                     onNextEpisode = {
-                         if (nextEpisode != null) {
-                             playEpisode(nextEpisode.guid)
-                         }
+                        if (nextEpisode != null) {
+                            playEpisode(nextEpisode.guid)
+                        }
                     },
                     isNextEpisodeHovered = isNextEpisodeHovered,
                     onNextEpisodeHoverChanged = { isNextEpisodeHovered = it }
@@ -1437,15 +1518,37 @@ private suspend fun playMedia(
         logger.i("startPosition: $startPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
         // 设置字幕
         val extraFiles = subtitleStream?.let {
-            val mediaExtraFiles = getMediaExtraFiles(it)
+            val mediaExtraFiles = getMediaExtraFiles(it, playLinkResult.playLink)
             mediaExtraFiles
         } ?: MediaExtraFiles()
         // 启动播放器
+        var actualPlayLink = playLinkResult.playLink
+        var isM3u8 = false
+        if (playLinkResult.playLink.contains(".m3u8")) {
+            isM3u8 = true
+            try {
+                // If it's HLS, check if it contains subtitles
+                // If so, we need to extract the video stream URL to pass to VLC
+                // to avoid VLC parsing subtitles itself
+                val m3u8Content = HlsSubtitleRepository.fetchContent(fnOfficialClient, playLinkResult.playLink)
+                if (m3u8Content.contains("#EXT-X-MEDIA:TYPE=SUBTITLES")) {
+                    val videoStreamUrl = HlsSubtitleRepository.extractVideoStreamUrl(m3u8Content, playLinkResult.playLink)
+                    if (videoStreamUrl != null) {
+                        actualPlayLink = videoStreamUrl
+                        logger.i("Extracted video stream URL for VLC: $actualPlayLink")
+                    }
+                }
+            } catch (e: Exception) {
+                logger.w("Failed to parse m3u8 for video stream extraction: ${e.message}")
+            }
+        }
+
         startPlayback(
             player,
-            playLinkResult.playLink,
+            actualPlayLink,
             playLinkResult.effectiveStartPosition,
-            extraFiles
+            extraFiles,
+            isM3u8
         )
         // 调用playRecord接口
         callPlayRecord(
@@ -1466,13 +1569,21 @@ private suspend fun playMedia(
 }
 
 private fun getMediaExtraFiles(
-    subtitleStream: SubtitleStream
+    subtitleStream: SubtitleStream,
+    playLink: String? = null
 ): MediaExtraFiles {
-    if (subtitleStream.isExternal == 1 && subtitleStream.format in listOf("srt", "ass")) {
-        val subtitleLink =
-            "${AccountDataCache.getProxyBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
-        val subtitle = Subtitle(subtitleLink)
-        return MediaExtraFiles(listOf(subtitle))
+    // HLS subtitles are handled manually by HlsSubtitleRepository and overlay
+    if (!playLink.isNullOrBlank() && playLink.contains(".m3u8") && subtitleStream.isExternal == 0) {
+        return MediaExtraFiles()
+    }
+
+    if (subtitleStream.isExternal == 1) {
+        if (subtitleStream.format in listOf("srt", "ass", "vtt")) {
+            val subtitleLink =
+                "${AccountDataCache.getProxyBaseUrl()}/v/api/v1/subtitle/dl/${subtitleStream.guid}"
+            val subtitle = Subtitle(subtitleLink)
+            return MediaExtraFiles(listOf(subtitle))
+        }
     }
     return MediaExtraFiles()
 }
@@ -1548,13 +1659,19 @@ private suspend fun startPlayback(
     player: MediampPlayer,
     playLink: String,
     startPosition: Long,
-    extraFiles: MediaExtraFiles
+    extraFiles: MediaExtraFiles,
+    isM3u8: Boolean = false
 ) {
     val isDirectLink = playLink.contains("/v/api/v1/media/range/")
-    val baseUrl = if (AccountDataCache.cookieState.isNotBlank() && isDirectLink) {
+    var baseUrl = if (AccountDataCache.cookieState.isNotBlank() && isDirectLink) {
         AccountDataCache.getProxyBaseUrl()
     } else {
         AccountDataCache.getFnOfficialBaseUrl()
+    }
+    
+    // If it's a full URL (e.g. extracted m3u8 video stream), don't prepend base URL
+    if (playLink.startsWith("http")) {
+        baseUrl = ""
     }
 
     if (AccountDataCache.cookieState.isNotBlank()) {
@@ -1931,6 +2048,7 @@ private fun handlePlayerKeyEvent(
                     AppSettingsStore.playerIsFullscreen = true
                 }
             }
+
             Key.Escape -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
