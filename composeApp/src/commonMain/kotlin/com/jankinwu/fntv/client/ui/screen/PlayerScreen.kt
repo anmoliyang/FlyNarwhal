@@ -446,7 +446,7 @@ fun PlayerOverlay(
         }
 
     LaunchedEffect(hlsSubtitleUtil, externalSubtitleUtil) {
-        hlsSubtitleUtil?.initialize()
+        hlsSubtitleUtil?.initialize(mediaPlayer.getCurrentPositionMillis())
         externalSubtitleUtil?.initialize()
     }
 
@@ -513,7 +513,7 @@ fun PlayerOverlay(
                         // Check if it's an internal subtitle
                         if (subtitleStream != null && subtitleStream.isExternal == 0) {
                             // Reload HLS subtitle repository to fetch new segments
-                            hlsSubtitleUtil?.reload()
+                            // hlsSubtitleUtil?.reload() // Removed reload() to avoid re-initialization conflict
                             // Don't restart playback for internal subtitles
                             if (cache.previousSubtitle?.isExternal == 0) {
                                 shouldStartPlayback = false
@@ -1022,6 +1022,13 @@ fun PlayerOverlay(
                         val seekPosition = (newProgress * totalDuration).toLong()
                         mediaPlayer.seekTo(seekPosition)
                         logger.i("Seek to: ${newProgress * 100}%")
+                        
+                        // Force update subtitle on seek
+                        if (hlsSubtitleUtil != null) {
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                hlsSubtitleUtil.update(seekPosition)
+                            }
+                        }
 
                         callPlayRecord(
                             ts = (seekPosition / 1000).toInt(),

@@ -7,10 +7,9 @@ import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
-import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -103,9 +102,11 @@ class HlsSubtitleUtil(
         }
     }
 
-    suspend fun initialize() {
+    suspend fun initialize(startPositionMs: Long) {
+        mutex.withLock {
+            if (isInitialized) return
+        }
         withContext(Dispatchers.IO) {
-            if (isInitialized) return@withContext
             try {
                 baseUrl = playLink.substringBeforeLast("/")
                 val fullPlayLink = constructFullUrl(playLink)
@@ -127,17 +128,21 @@ class HlsSubtitleUtil(
                 val playlistContent = fetchWithAuth(subtitlePlaylistUrl)
                 
                 // 4. Parse segments with duration
-                parseSegments(playlistContent)
-                
-                isInitialized = true
+                mutex.withLock {
+                    parseSegments(playlistContent)
+                    isInitialized = true
+                }
                 logger.i { "Initialized HLS subtitle repository with ${segments.size} segments" }
+                
+                // 5. Immediately update for the current position
+                update(startPositionMs)
             } catch (e: Exception) {
                 logger.e(e) { "Failed to initialize HlsSubtitleRepository" }
             }
         }
     }
 
-    suspend fun reload() {
+    suspend fun reload(startPositionMs: Long = 0L) {
         mutex.withLock {
             segments.clear()
             cues.clear()
@@ -146,7 +151,7 @@ class HlsSubtitleUtil(
             lastUpdateCheckTime = 0L
             lastProcessedPositionSec = -1.0
         }
-        initialize()
+        initialize(startPositionMs)
     }
 
     suspend fun update(currentPositionMs: Long) = withContext(Dispatchers.IO) {
@@ -335,10 +340,10 @@ class HlsSubtitleUtil(
 
     private suspend fun fetchWithAuth(url: String): String {
         return client.get(url) {
-            if (AccountDataCache.cookieState.isNotBlank()) {
-                 header("cookie", AccountDataCache.cookieState)
-                 header("Authorization", AccountDataCache.authorization)
-            }
+//            if (AccountDataCache.cookieState.isNotBlank()) {
+//                 header("cookie", AccountDataCache.cookieState)
+//                 header("Authorization", AccountDataCache.authorization)
+//            }
         }.bodyAsText()
     }
 
