@@ -4,16 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlin.math.roundToInt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,8 +30,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,7 +44,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,6 +54,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -66,9 +62,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
+import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.icons.Delete
 import com.jankinwu.fntv.client.icons.Subtitle
@@ -77,6 +73,7 @@ import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 private val FlyoutBackgroundColor = Color.Black.copy(alpha = 0.9f)
 private val FlyoutBorderColor = Color.Gray.copy(alpha = 0.5f)
@@ -346,10 +343,10 @@ fun SubtitleAdjustmentContent(
         border = BorderStroke(1.dp, FlyoutBorderColor),
         modifier = Modifier.width(MenuWidth)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -373,99 +370,111 @@ fun SubtitleAdjustmentContent(
                 }
             }
 
-            // Offset
-            Text("偏移", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SubtitleAdjustmentSlider(
-                    value = settings.offsetSeconds,
-                    onValueChange = { 
-                        // Round to 1 decimal place
-                        val rounded = (it * 10).roundToInt() / 10f
-                        onSettingsChanged(settings.copy(offsetSeconds = rounded)) 
-                    },
-                    valueRange = -5f..5f,
-                    showCenterMark = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                        .width(40.dp), // Fixed width for stability
-                    contentAlignment = Alignment.Center
-                ) {
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp),
+                color = Color.White.copy(alpha = 0.1f)
+            )
+
+            // Content Container with fixed height to match SubtitleFlyoutContent
+            Column(
+                modifier = Modifier
+                    .height(300.dp)
+                    .padding(horizontal = 8.dp)
+            ) {
+                // Offset
+                Text("偏移", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SubtitleAdjustmentSlider(
+                        value = settings.offsetSeconds,
+                        onValueChange = { 
+                            // Round to 1 decimal place
+                            val rounded = (it * 10).roundToInt() / 10f
+                            onSettingsChanged(settings.copy(offsetSeconds = rounded)) 
+                        },
+                        valueRange = -5f..5f,
+                        showCenterMark = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .width(40.dp), // Fixed width for stability
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "${((settings.offsetSeconds * 10).roundToInt() / 10.0)}",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
                     Text(
-                        text = "${((settings.offsetSeconds * 10).roundToInt() / 10.0)}",
+                        " 秒",
                         color = Color.White,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 4.dp)
                     )
                 }
-                Text(
-                    " 秒",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 4.dp)
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(end = 60.dp), // Align with slider
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("-5秒", color = DefaultTextColor, fontSize = 10.sp)
-                Text("+5秒", color = DefaultTextColor, fontSize = 10.sp)
-            }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(end = 60.dp), // Align with slider
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("-5秒", color = DefaultTextColor, fontSize = 10.sp)
+                    Text("+5秒", color = DefaultTextColor, fontSize = 10.sp)
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Position
-            Text("位置", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "底部",
-                    color = DefaultTextColor,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                SubtitleAdjustmentSlider(
-                    value = settings.verticalPosition,
-                    onValueChange = { onSettingsChanged(settings.copy(verticalPosition = it)) },
-                    valueRange = 0f..1f,
-                    showCenterMark = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "顶部",
-                    color = DefaultTextColor,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
+                // Position
+                Text("位置", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "底部",
+                        color = DefaultTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    SubtitleAdjustmentSlider(
+                        value = settings.verticalPosition,
+                        onValueChange = { onSettingsChanged(settings.copy(verticalPosition = it)) },
+                        valueRange = 0f..1f,
+                        showCenterMark = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "顶部",
+                        color = DefaultTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Font Size
-            Text("字号", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "最小",
-                    color = DefaultTextColor,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                SubtitleAdjustmentSlider(
-                    value = settings.fontScale,
-                    onValueChange = { onSettingsChanged(settings.copy(fontScale = it)) },
-                    valueRange = 0.5f..2.0f,
-                    showCenterMark = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "最大",
-                    color = DefaultTextColor,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+                // Font Size
+                Text("字号", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "最小",
+                        color = DefaultTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    SubtitleAdjustmentSlider(
+                        value = settings.fontScale,
+                        onValueChange = { onSettingsChanged(settings.copy(fontScale = it)) },
+                        valueRange = 0.5f..2.0f,
+                        showCenterMark = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        "最大",
+                        color = DefaultTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                }
             }
         }
     }

@@ -42,6 +42,7 @@ import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
@@ -50,6 +51,7 @@ import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.io.File
 
+@OptIn(FlowPreview::class)
 fun main() = application {
     val logDir = initializeLoggingDirectory()
     Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
