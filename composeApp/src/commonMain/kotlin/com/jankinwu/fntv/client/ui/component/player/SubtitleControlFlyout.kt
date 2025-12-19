@@ -464,7 +464,7 @@ fun SubtitleAdjustmentContent(
                     SubtitleAdjustmentSlider(
                         value = settings.fontScale,
                         onValueChange = { onSettingsChanged(settings.copy(fontScale = it)) },
-                        valueRange = 0.5f..2.0f,
+                        valueRange = 0f..2.0f,
                         showCenterMark = true,
                         modifier = Modifier.weight(1f)
                     )

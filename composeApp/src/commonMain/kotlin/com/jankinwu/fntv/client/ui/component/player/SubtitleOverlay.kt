@@ -68,7 +68,7 @@ fun SubtitleOverlay(
         val scaleY = screenHeight / playResY
 
         // Font Size
-        val fontSizeDp = props.fontSize * scaleY * settings.fontScale
+        val fontSizeDp = props.fontSize * scaleY * settings.fontScale * 0.5
         val fontSizeSp = with(LocalDensity.current) { fontSizeDp.dp.toSp() }
 
         // Position
@@ -286,7 +286,7 @@ fun SubtitleOverlay(
                             // ASS Flow Rendering
                             val playResY = if (props.playResY > 0) props.playResY else 288
                             val scaleY = screenHeight / playResY
-                            val fontSizeDp = props.fontSize * scaleY * settings.fontScale
+                            val fontSizeDp = props.fontSize * scaleY * settings.fontScale * 0.5
                             val fontSizeSp = with(LocalDensity.current) { fontSizeDp.dp.toSp() }
 
                             AssStyledText(
@@ -373,7 +373,7 @@ fun AssStyledText(
                          color = outlineColor,
                          shadow = scaledShadow, // Apply shadow to the outline layer
                          drawStyle = Stroke(
-                             width = widthVal * strokeScale * 4f,
+                             width = widthVal * strokeScale * 3f,
                              join = StrokeJoin.Round,
                              cap = StrokeCap.Round
                          )
