@@ -512,15 +512,9 @@ fun PlayerOverlay(
             launch {
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
-                    // We fetch cues with a small buffer window to ensure smoothness
-                    // But actually, getCurrentSubtitle filters by time.
-                    // For smooth animation, we need to ensure the list includes items that MIGHT be visible soon?
-                    // No, getCurrentSubtitle returns items visible AT that timestamp.
-                    // If we update this list every 50ms, we still have the recomposition issue.
-                    // Ideally, we fetch a larger window of cues and filter locally in drawing?
-                    // For now, let's keep it simple: update list every 100ms.
+
                     subtitleCues = hlsSubtitleUtil.getCurrentSubtitle(currentPos)
-                    delay(100)
+                    delay(50)
                 }
             }
         } else if (externalSubtitleUtil != null) {
@@ -528,7 +522,7 @@ fun PlayerOverlay(
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
                     subtitleCues = externalSubtitleUtil.getCurrentSubtitle(currentPos)
-                    delay(100)
+                    delay(50)
                 }
             }
         } else {
@@ -1049,9 +1043,7 @@ fun PlayerOverlay(
                                 Text(
                                     text = cue.text,
                                     style = TextStyle(
-                                        color = Color.White,
                                         fontSize = fontSizeSp,
-                                        fontWeight = FontWeight.Bold, 
                                         shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
                                     ),
                                     modifier = Modifier
@@ -1063,9 +1055,6 @@ fun PlayerOverlay(
                                             }
                                         }
                                         .graphicsLayer {
-                                             // Calculate current position frame-perfectly
-                                             // We need to re-calc x and y based on currentRenderTime inside graphicsLayer
-                                             // But props.move parameters are static, only time changes.
                                              
                                              var currX = x
                                              var currY = y
@@ -1200,9 +1189,7 @@ fun PlayerOverlay(
                                      Text(
                                         text = cue.text,
                                         style = TextStyle(
-                                            color = Color.White,
                                             fontSize = fontSizeSp,
-                                            fontWeight = FontWeight.Bold,
                                             shadow = Shadow(Color.Black, Offset(1f, 1f), 2f)
                                         )
                                     )

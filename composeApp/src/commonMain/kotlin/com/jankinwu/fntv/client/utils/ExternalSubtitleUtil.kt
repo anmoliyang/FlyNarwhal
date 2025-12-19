@@ -29,7 +29,9 @@ data class AssStyle(
     val italic: Boolean,
     val underline: Boolean,
     val strikeOut: Boolean,
-    val alignment: Int = 2
+    val alignment: Int = 2,
+    val outlineWidth: Float = 0f,
+    val shadowDistance: Float = 0f
 ) {
     companion object {
         val Default = AssStyle(
@@ -44,7 +46,9 @@ data class AssStyle(
             italic = false,
             underline = false,
             strikeOut = false,
-            alignment = 2
+            alignment = 2,
+            outlineWidth = 2f,
+            shadowDistance = 0f
         )
     }
 }
@@ -115,7 +119,14 @@ class ExternalSubtitleUtil(
                     .replace(Regex("<.*?>"), "") 
 
                 if (subtitleText.isNotBlank()) {
-                    cues.add(SubtitleCue(startTime, endTime, AnnotatedString(subtitleText)))
+                    cues.add(
+                        SubtitleCue(
+                            startTime = startTime,
+                            endTime = endTime,
+                            text = AnnotatedString(subtitleText),
+                            assProps = null
+                        )
+                    )
                 }
             }
         }
@@ -184,10 +195,12 @@ class ExternalSubtitleUtil(
                             val underline = (parts.getOrNull(styleFormatIndexMap["underline"] ?: -1) ?: "0") != "0"
                             val strikeOut = (parts.getOrNull(styleFormatIndexMap["strikeout"] ?: -1) ?: "0") != "0"
                             val alignment = parts.getOrNull(styleFormatIndexMap["alignment"] ?: -1)?.toIntOrNull() ?: 2
+                            val outlineWidth = parts.getOrNull(styleFormatIndexMap["outline"] ?: -1)?.toFloatOrNull() ?: 0f
+                            val shadowDistance = parts.getOrNull(styleFormatIndexMap["shadow"] ?: -1)?.toFloatOrNull() ?: 0f
                             
                             val style = AssStyle(
                                 name, fontName, fontSize, primaryColor, secondaryColor, outlineColor, backColor,
-                                bold, italic, underline, strikeOut, alignment
+                                bold, italic, underline, strikeOut, alignment, outlineWidth, shadowDistance
                             )
                             styles[name] = style
                         }
@@ -330,17 +343,49 @@ class ExternalSubtitleUtil(
             var underline = baseStyle.underline
             var strikeOut = baseStyle.strikeOut
             var color = baseStyle.primaryColor
-            
+            var secondaryColor = baseStyle.secondaryColor
+            var outlineColor = baseStyle.outlineColor
+            var shadowColor = baseStyle.backColor
+            var outlineWidth = baseStyle.outlineWidth
+            var shadowDistance = baseStyle.shadowDistance
+            var blurRadius = 0f
+
             tagRegex.findAll(cleanText).forEach { match ->
                 // Append text before tag
                 if (match.range.first > currentIndex) {
                     val segment = cleanText.substring(currentIndex, match.range.first)
+                    
+                    // Create shadow if distance > 0
+                    // Compose SpanStyle only supports one shadow. We prioritize shadow (\shad) over outline (\bord) if both exist,
+                    // or maybe we can try to use it for Outline if Shadow is 0?
+                    // Actually \4c is Shadow Colour. \3c is Outline Colour.
+                    // If we have Shadow Distance, we use Shadow Color.
+                    
+                    val shadowEffect = if (shadowDistance > 0f) {
+                        // Shadow distance in ASS is pixels. 
+                        // Compose Shadow offset is in pixels.
+                        androidx.compose.ui.graphics.Shadow(
+                            color = shadowColor,
+                            offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
+                            blurRadius = blurRadius
+                        )
+                    } else if (outlineWidth > 0f) {
+                         // Simulate Outline with Shadow? No, that looks like drop shadow.
+                         // But better than nothing if user wants outline color.
+                         // However, typically Outline is a stroke around text.
+                         // Compose doesn't support stroke in SpanStyle.
+                         null
+                    } else {
+                        null
+                    }
+                    
                     withStyle(
                         SpanStyle(
                             color = color,
                             fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                             fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
-                            textDecoration = combineTextDecoration(underline, strikeOut)
+                            textDecoration = combineTextDecoration(underline, strikeOut),
+                            shadow = shadowEffect
                         )
                     ) {
                         append(segment)
@@ -353,26 +398,73 @@ class ExternalSubtitleUtil(
                 for (tag in tags) {
                     if (tag.isEmpty()) continue
                     
-                    if (tag.startsWith("b")) {
-                        val param = tag.removePrefix("b")
-                        if (param.isEmpty() || param == "1") bold = true
-                        else if (param == "0") bold = false
-                        else {
-                            // \b<weight>
-                            bold = (param.toIntOrNull() ?: 0) > 400
+                    if (tag.startsWith("bord")) {
+                        outlineWidth = tag.removePrefix("bord").toFloatOrNull() ?: 0f
+                    } else if (tag.startsWith("shad")) {
+                        shadowDistance = tag.removePrefix("shad").toFloatOrNull() ?: 0f
+                    } else if (tag.startsWith("blur")) {
+                        blurRadius = tag.removePrefix("blur").toFloatOrNull() ?: 0f
+                    } else if (tag.startsWith("be")) {
+                        blurRadius = tag.removePrefix("be").toFloatOrNull() ?: 0f
+                    } else if (tag.startsWith("b")) {
+                        // Ensure it's not 'be' or 'blur'
+                         if (!tag.startsWith("be") && !tag.startsWith("blur")) {
+                            val param = tag.removePrefix("b")
+                            if (param.isEmpty() || param == "1") bold = true
+                            else if (param == "0") bold = false
+                            else {
+                                // \b<weight>
+                                bold = (param.toIntOrNull() ?: 0) > 400
+                            }
                         }
                     } else if (tag.startsWith("i")) {
-                        italic = tag.removePrefix("i") != "0"
+                         italic = tag.removePrefix("i") != "0"
                     } else if (tag.startsWith("u")) {
-                        underline = tag.removePrefix("u") != "0"
+                         underline = tag.removePrefix("u") != "0"
                     } else if (tag.startsWith("s")) {
-                        strikeOut = tag.removePrefix("s") != "0"
-                    } else if (tag.startsWith("c") || tag.startsWith("1c")) {
+                        // Ensure it's not 'shad' (handled above) or 'sc' etc.
+                        // 'shad' starts with 's'. We handled 'shad' before.
+                        // But wait, we iterate tags. If tag is 'shad1', it enters here?
+                        // No, because we check 'shad' first in this if-else chain.
+                        // BUT, if we put 'shad' check AFTER 's' check, it would be a bug.
+                        // So order matters.
+                        // 'shad' check must be BEFORE 's' check.
+                        
+                        // Also check for 'sc' (Scale constraint?) - ASS tags: \scx, \scy.
+                        if (!tag.startsWith("sc")) {
+                            strikeOut = tag.removePrefix("s") != "0"
+                        }
+                    } else if (tag.startsWith("1c") || (tag.startsWith("c") && !tag.startsWith("clip"))) {
+                        // Primary Color
                         val colorStr = tag.substringAfter("&H").substringBefore("&")
                         if (colorStr.isNotEmpty()) {
                             color = parseAssColorString(colorStr)
                         } else if (tag == "c" || tag == "1c") {
-                            color = baseStyle.primaryColor // Reset to style default
+                            color = baseStyle.primaryColor
+                        }
+                    } else if (tag.startsWith("2c")) {
+                        // Secondary Color
+                        val colorStr = tag.substringAfter("&H").substringBefore("&")
+                        if (colorStr.isNotEmpty()) {
+                            secondaryColor = parseAssColorString(colorStr)
+                        } else if (tag == "2c") {
+                            secondaryColor = baseStyle.secondaryColor
+                        }
+                    } else if (tag.startsWith("3c")) {
+                        // Outline Color
+                        val colorStr = tag.substringAfter("&H").substringBefore("&")
+                        if (colorStr.isNotEmpty()) {
+                            outlineColor = parseAssColorString(colorStr)
+                        } else if (tag == "3c") {
+                            outlineColor = baseStyle.outlineColor
+                        }
+                    } else if (tag.startsWith("4c")) {
+                        // Shadow Color
+                        val colorStr = tag.substringAfter("&H").substringBefore("&")
+                        if (colorStr.isNotEmpty()) {
+                            shadowColor = parseAssColorString(colorStr)
+                        } else if (tag == "4c") {
+                            shadowColor = baseStyle.backColor
                         }
                     } else if (tag.startsWith("r")) {
                         // Reset style
@@ -383,6 +475,11 @@ class ExternalSubtitleUtil(
                         underline = newStyle.underline
                         strikeOut = newStyle.strikeOut
                         color = newStyle.primaryColor
+                        secondaryColor = newStyle.secondaryColor
+                        outlineColor = newStyle.outlineColor
+                        shadowColor = newStyle.backColor
+                        outlineWidth = newStyle.outlineWidth
+                        shadowDistance = newStyle.shadowDistance
                     }
                 }
                 
@@ -391,12 +488,23 @@ class ExternalSubtitleUtil(
             
             // Append remaining text
             if (currentIndex < cleanText.length) {
+                val shadowEffect = if (shadowDistance > 0f) {
+                    androidx.compose.ui.graphics.Shadow(
+                        color = shadowColor,
+                        offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
+                        blurRadius = blurRadius
+                    )
+                } else {
+                    null
+                }
+                
                 withStyle(
                     SpanStyle(
                         color = color,
                         fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
                         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
-                        textDecoration = combineTextDecoration(underline, strikeOut)
+                        textDecoration = combineTextDecoration(underline, strikeOut),
+                        shadow = shadowEffect
                     )
                 ) {
                     append(cleanText.substring(currentIndex))

@@ -1,7 +1,6 @@
 package com.jankinwu.fntv.client.utils
 
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.buildAnnotatedString
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.SubtitleStream
 import com.jankinwu.fntv.client.data.store.AccountDataCache
@@ -273,7 +272,14 @@ class HlsSubtitleUtil(
                     val text = textBuilder.toString().trim()
                     
                     if (text.isNotEmpty()) {
-                        cues.add(SubtitleCue(startMs, endMs, AnnotatedString(text)))
+                        cues.add(
+                            SubtitleCue(
+                                startTime = startMs,
+                                endTime = endMs,
+                                text = AnnotatedString(text),
+                                assProps = null
+                            )
+                        )
                     }
                 } catch (e: Exception) {
                     // Ignore malformed
