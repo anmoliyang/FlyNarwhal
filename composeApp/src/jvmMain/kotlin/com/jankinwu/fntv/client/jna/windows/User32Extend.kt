@@ -11,6 +11,7 @@ import com.sun.jna.platform.win32.WinDef.LPARAM
 import com.sun.jna.platform.win32.WinDef.LRESULT
 import com.sun.jna.platform.win32.WinUser.WindowProc
 import com.sun.jna.platform.win32.BaseTSD.LONG_PTR
+import com.sun.jna.platform.win32.WinDef
 import com.sun.jna.platform.win32.WinDef.HMENU
 import com.sun.jna.platform.win32.WinDef.POINT
 import com.sun.jna.platform.win32.WinDef.RECT
@@ -47,6 +48,7 @@ internal interface User32Extend : User32 {
 
     fun SetMenuDefaultItem(hMenu: HMENU, uItem: Int, fByPos: Boolean): Boolean
 
+    fun RedrawWindow(hWnd: HWND, lprcUpdate: RECT?, hrgnUpdate: WinDef.HRGN?, flags: Int): Boolean
 
     companion object {
         private val logger = Logger.withTag("User32Extend")

@@ -256,11 +256,11 @@ fun SubtitleControlFlyout(
 
 @Composable
 fun SubtitleAdjustmentSlider(
+    modifier: Modifier = Modifier,
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
-    showCenterMark: Boolean = false,
-    modifier: Modifier = Modifier
+    showCenterMark: Boolean = false
 ) {
     val barHeight = 4.dp
     val thumbRadius = 6.dp
@@ -464,7 +464,7 @@ fun SubtitleAdjustmentContent(
                     SubtitleAdjustmentSlider(
                         value = settings.fontScale,
                         onValueChange = { onSettingsChanged(settings.copy(fontScale = it)) },
-                        valueRange = 0.5f..2.0f,
+                        valueRange = 0.5f..1.5f,
                         showCenterMark = true,
                         modifier = Modifier.weight(1f)
                     )
@@ -824,7 +824,7 @@ fun SubtitleOptionItem(
             }
         }
 
-        if (isExternal && isHovered) {
+        if (isExternal && isHovered && !isSelected) {
             var isIconHovered by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier

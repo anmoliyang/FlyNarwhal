@@ -25,7 +25,7 @@ data class AssStyle(
     val secondaryColor: Color,
     val outlineColor: Color,
     val backColor: Color,
-    val bold: Boolean,
+    val bold: Int, // 0/1/-1 or specific weight
     val italic: Boolean,
     val underline: Boolean,
     val strikeOut: Boolean,
@@ -42,7 +42,7 @@ data class AssStyle(
             secondaryColor = Color.Red,
             outlineColor = Color.Black,
             backColor = Color.Black,
-            bold = false,
+            bold = 0,
             italic = false,
             underline = false,
             strikeOut = false,
@@ -93,7 +93,7 @@ class ExternalSubtitleUtil(
     fun getCurrentSubtitle(currentPositionMs: Long): List<SubtitleCue> {
         return cues.filter { cue ->
             currentPositionMs >= cue.startTime && currentPositionMs < cue.endTime
-        }
+        }.distinctBy { it.text to it.assProps }
     }
 
     private fun parseSrt(content: String): List<SubtitleCue> {
@@ -145,7 +145,7 @@ class ExternalSubtitleUtil(
                 
                 return (hours * 3600000) + (minutes * 60000) + (seconds * 1000) + millis
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Ignore malformed time
         }
         return 0L
@@ -154,8 +154,8 @@ class ExternalSubtitleUtil(
     private fun parseAss(content: String): List<SubtitleCue> {
         val cues = mutableListOf<SubtitleCue>()
         val lines = content.lines()
-        var formatIndexMap = mutableMapOf<String, Int>()
-        var styleFormatIndexMap = mutableMapOf<String, Int>()
+        val formatIndexMap = mutableMapOf<String, Int>()
+        val styleFormatIndexMap = mutableMapOf<String, Int>()
         
         var section = ""
         
@@ -190,7 +190,15 @@ class ExternalSubtitleUtil(
                             val secondaryColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["secondarycolour"] ?: -1) ?: "")
                             val outlineColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["outlinecolour"] ?: -1) ?: "")
                             val backColor = parseAssColor(parts.getOrNull(styleFormatIndexMap["backcolour"] ?: -1) ?: "")
-                            val bold = (parts.getOrNull(styleFormatIndexMap["bold"] ?: -1) ?: "0") != "0"
+                            
+                            val boldRaw = parts.getOrNull(styleFormatIndexMap["bold"] ?: -1) ?: "0"
+                            val bold = when (boldRaw) {
+                                "-1" -> 1 // Standard ASS True
+                                "1" -> 1  // Standard ASS True
+                                "0" -> 0  // Standard ASS False
+                                else -> boldRaw.toIntOrNull() ?: 0 // Specific weight or 0
+                            }
+                            
                             val italic = (parts.getOrNull(styleFormatIndexMap["italic"] ?: -1) ?: "0") != "0"
                             val underline = (parts.getOrNull(styleFormatIndexMap["underline"] ?: -1) ?: "0") != "0"
                             val strikeOut = (parts.getOrNull(styleFormatIndexMap["strikeout"] ?: -1) ?: "0") != "0"
@@ -338,7 +346,7 @@ class ExternalSubtitleUtil(
             var currentIndex = 0
             
             // State variables
-            var bold = baseStyle.bold
+            var boldWeight = baseStyle.bold
             var italic = baseStyle.italic
             var underline = baseStyle.underline
             var strikeOut = baseStyle.strikeOut
@@ -355,41 +363,28 @@ class ExternalSubtitleUtil(
                 if (match.range.first > currentIndex) {
                     val segment = cleanText.substring(currentIndex, match.range.first)
                     
-                    // Create shadow if distance > 0
-                    // Compose SpanStyle only supports one shadow. We prioritize shadow (\shad) over outline (\bord) if both exist,
-                    // or maybe we can try to use it for Outline if Shadow is 0?
-                    // Actually \4c is Shadow Colour. \3c is Outline Colour.
-                    // If we have Shadow Distance, we use Shadow Color.
-                    
-                    val shadowEffect = if (shadowDistance > 0f) {
-                        // Shadow distance in ASS is pixels. 
-                        // Compose Shadow offset is in pixels.
-                        androidx.compose.ui.graphics.Shadow(
-                            color = shadowColor,
-                            offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
-                            blurRadius = blurRadius
-                        )
-                    } else if (outlineWidth > 0f) {
-                         // Simulate Outline with Shadow? No, that looks like drop shadow.
-                         // But better than nothing if user wants outline color.
-                         // However, typically Outline is a stroke around text.
-                         // Compose doesn't support stroke in SpanStyle.
-                         null
-                    } else {
-                        null
-                    }
+                    pushStringAnnotation("AssOutlineWidth", outlineWidth.toString())
+                    pushStringAnnotation("AssOutlineColor", outlineColor.value.toString())
+                    pushStringAnnotation("AssShadowDistance", shadowDistance.toString())
+                    pushStringAnnotation("AssShadowColor", shadowColor.value.toString())
+                    pushStringAnnotation("AssBlurRadius", blurRadius.toString())
                     
                     withStyle(
                         SpanStyle(
                             color = color,
-                            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                            fontWeight = resolveFontWeight(boldWeight),
                             fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
                             textDecoration = combineTextDecoration(underline, strikeOut),
-                            shadow = shadowEffect
+                            shadow = null // Shadow handled by annotations in AssStyledText
                         )
                     ) {
                         append(segment)
                     }
+                    pop()
+                    pop()
+                    pop()
+                    pop()
+                    pop()
                 }
                 
                 // Parse tag
@@ -410,26 +405,19 @@ class ExternalSubtitleUtil(
                         // Ensure it's not 'be' or 'blur'
                          if (!tag.startsWith("be") && !tag.startsWith("blur")) {
                             val param = tag.removePrefix("b")
-                            if (param.isEmpty() || param == "1") bold = true
-                            else if (param == "0") bold = false
-                            else {
-                                // \b<weight>
-                                bold = (param.toIntOrNull() ?: 0) > 400
-                            }
+                             boldWeight = if (param.isEmpty() || param == "1") 1
+                             else if (param == "0") 0
+                             else {
+                                 // \b<weight>
+                                 param.toIntOrNull() ?: 0
+                             }
                         }
                     } else if (tag.startsWith("i")) {
                          italic = tag.removePrefix("i") != "0"
                     } else if (tag.startsWith("u")) {
                          underline = tag.removePrefix("u") != "0"
                     } else if (tag.startsWith("s")) {
-                        // Ensure it's not 'shad' (handled above) or 'sc' etc.
-                        // 'shad' starts with 's'. We handled 'shad' before.
-                        // But wait, we iterate tags. If tag is 'shad1', it enters here?
-                        // No, because we check 'shad' first in this if-else chain.
-                        // BUT, if we put 'shad' check AFTER 's' check, it would be a bug.
-                        // So order matters.
-                        // 'shad' check must be BEFORE 's' check.
-                        
+
                         // Also check for 'sc' (Scale constraint?) - ASS tags: \scx, \scy.
                         if (!tag.startsWith("sc")) {
                             strikeOut = tag.removePrefix("s") != "0"
@@ -438,7 +426,9 @@ class ExternalSubtitleUtil(
                         // Primary Color
                         val colorStr = tag.substringAfter("&H").substringBefore("&")
                         if (colorStr.isNotEmpty()) {
-                            color = parseAssColorString(colorStr)
+                            val newColor = parseAssColorString(colorStr)
+                            // If the tag only provides RGB (length <= 6), preserve the existing alpha
+                            color = if (colorStr.length <= 6) newColor.copy(alpha = color.alpha) else newColor
                         } else if (tag == "c" || tag == "1c") {
                             color = baseStyle.primaryColor
                         }
@@ -446,7 +436,8 @@ class ExternalSubtitleUtil(
                         // Secondary Color
                         val colorStr = tag.substringAfter("&H").substringBefore("&")
                         if (colorStr.isNotEmpty()) {
-                            secondaryColor = parseAssColorString(colorStr)
+                            val newColor = parseAssColorString(colorStr)
+                            secondaryColor = if (colorStr.length <= 6) newColor.copy(alpha = secondaryColor.alpha) else newColor
                         } else if (tag == "2c") {
                             secondaryColor = baseStyle.secondaryColor
                         }
@@ -454,7 +445,8 @@ class ExternalSubtitleUtil(
                         // Outline Color
                         val colorStr = tag.substringAfter("&H").substringBefore("&")
                         if (colorStr.isNotEmpty()) {
-                            outlineColor = parseAssColorString(colorStr)
+                            val newColor = parseAssColorString(colorStr)
+                            outlineColor = if (colorStr.length <= 6) newColor.copy(alpha = outlineColor.alpha) else newColor
                         } else if (tag == "3c") {
                             outlineColor = baseStyle.outlineColor
                         }
@@ -462,7 +454,8 @@ class ExternalSubtitleUtil(
                         // Shadow Color
                         val colorStr = tag.substringAfter("&H").substringBefore("&")
                         if (colorStr.isNotEmpty()) {
-                            shadowColor = parseAssColorString(colorStr)
+                            val newColor = parseAssColorString(colorStr)
+                            shadowColor = if (colorStr.length <= 6) newColor.copy(alpha = shadowColor.alpha) else newColor
                         } else if (tag == "4c") {
                             shadowColor = baseStyle.backColor
                         }
@@ -470,7 +463,7 @@ class ExternalSubtitleUtil(
                         // Reset style
                         val newStyleName = tag.removePrefix("r")
                         val newStyle = if (newStyleName.isEmpty()) baseStyle else (styles[newStyleName] ?: baseStyle)
-                        bold = newStyle.bold
+                        boldWeight = newStyle.bold
                         italic = newStyle.italic
                         underline = newStyle.underline
                         strikeOut = newStyle.strikeOut
@@ -488,28 +481,37 @@ class ExternalSubtitleUtil(
             
             // Append remaining text
             if (currentIndex < cleanText.length) {
-                val shadowEffect = if (shadowDistance > 0f) {
-                    androidx.compose.ui.graphics.Shadow(
-                        color = shadowColor,
-                        offset = androidx.compose.ui.geometry.Offset(shadowDistance, shadowDistance),
-                        blurRadius = blurRadius
-                    )
-                } else {
-                    null
-                }
+                pushStringAnnotation("AssOutlineWidth", outlineWidth.toString())
+                pushStringAnnotation("AssOutlineColor", outlineColor.value.toString())
+                pushStringAnnotation("AssShadowDistance", shadowDistance.toString())
+                pushStringAnnotation("AssShadowColor", shadowColor.value.toString())
+                pushStringAnnotation("AssBlurRadius", blurRadius.toString())
                 
                 withStyle(
                     SpanStyle(
                         color = color,
-                        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+                        fontWeight = resolveFontWeight(boldWeight),
                         fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
                         textDecoration = combineTextDecoration(underline, strikeOut),
-                        shadow = shadowEffect
+                        shadow = null // Shadow handled by annotations in AssStyledText
                     )
                 ) {
                     append(cleanText.substring(currentIndex))
                 }
+                pop()
+                pop()
+                pop()
+                pop()
+                pop()
             }
+        }
+    }
+
+    private fun resolveFontWeight(weight: Int): FontWeight {
+        return when (weight) {
+            1 -> FontWeight.Normal // Map standard Bold (1) to Normal (400) because Compose renders Bold too thick for some fonts (e.g. Heiti)
+            0 -> FontWeight.Normal
+            else -> FontWeight(weight.coerceIn(1, 1000))
         }
     }
 
@@ -543,7 +545,7 @@ class ExternalSubtitleUtil(
                 val red = (longVal and 0xFF).toInt()
                 Color(red, green, blue, 255)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             return Color.White
         }
     }
@@ -561,7 +563,7 @@ class ExternalSubtitleUtil(
                 
                 return (hours * 3600000) + (minutes * 60000) + (seconds * 1000) + (centis * 10)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Ignore malformed time
         }
         return 0L
@@ -595,7 +597,7 @@ class ExternalSubtitleUtil(
                     if (text.isNotEmpty()) {
                         cues.add(SubtitleCue(startMs, endMs, AnnotatedString(text)))
                     }
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     // Ignore malformed
                 }
             }
