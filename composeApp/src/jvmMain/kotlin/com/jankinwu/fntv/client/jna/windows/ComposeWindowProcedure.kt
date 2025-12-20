@@ -89,7 +89,7 @@ internal class ComposeWindowProcedure(
     )
 
     //     The default window procedure to call its methods when the default method behaviour is desired/sufficient
-    private var defaultWindowProcedure = User32Extend.Companion.instance?.setWindowLong(windowHandle, WinUser.GWL_WNDPROC, this) ?: LONG_PTR(-1)
+    private var defaultWindowProcedure = User32Extend.instance?.setWindowLong(windowHandle, WinUser.GWL_WNDPROC, this) ?: LONG_PTR(-1)
 
     private var dpi = UINT(0)
     private var width = 0
@@ -99,7 +99,7 @@ internal class ComposeWindowProcedure(
     private var edgeX = 0
     private var edgeY = 0
     private var padding = 0
-    private var isMaximized = User32Extend.Companion.instance?.isWindowInMaximized(windowHandle) == true
+    private var isMaximized = User32Extend.instance?.isWindowInMaximized(windowHandle) == true
 
     var isWindowFrameAccentColorEnabled by mutableStateOf(isAccentColorWindowFrame())
 
@@ -159,9 +159,9 @@ internal class ComposeWindowProcedure(
             // thus effectively making all the window our client area
             WM_NCCALCSIZE -> {
                 if (wParam.toInt() == 0) {
-                    User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                    User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
                 } else {
-                    val user32 = User32Extend.Companion.instance ?: return LRESULT(0)
+                    val user32 = User32Extend.instance ?: return LRESULT(0)
                     dpi = user32.GetDpiForWindow(hWnd)
                     frameX = user32.GetSystemMetricsForDpi(WinUser.SM_CXFRAME, dpi)
                     frameY = user32.GetSystemMetricsForDpi(WinUser.SM_CYFRAME, dpi)
@@ -211,13 +211,13 @@ internal class ComposeWindowProcedure(
             }
 
             WM_DESTROY -> {
-                User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
             }
 
             WM_SIZE -> {
                 width = lParam.toInt() and 0xFFFF
                 height = (lParam.toInt() shr 16) and 0xFFFF
-                User32Extend.Companion.instance?.let { user32 ->
+                User32Extend.instance?.let { user32 ->
                     user32.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
                     // Ensure redraw on size change
                     user32.RedrawWindow(
@@ -231,7 +231,7 @@ internal class ComposeWindowProcedure(
             }
 
             WM_WINDOWPOSCHANGED -> {
-                User32Extend.Companion.instance?.let { user32 ->
+                User32Extend.instance?.let { user32 ->
                     user32.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
                     // 强制重绘，解决全屏切换时的渲染异常（白色色块）
                     user32.RedrawWindow(
@@ -246,7 +246,7 @@ internal class ComposeWindowProcedure(
 
             WM_NCRBUTTONUP -> {
                 if (wParam.toInt() == HTCAPTION) {
-                    val user32 = User32Extend.Companion.instance ?: return LRESULT(0)
+                    val user32 = User32Extend.instance ?: return LRESULT(0)
                     val oldStyle = user32.GetWindowLong(hWnd, WinUser.GWL_STYLE)
                     user32.SetWindowLong(hWnd, WinUser.GWL_STYLE, oldStyle or WS_SYSMENU)
                     val menu = user32.GetSystemMenu(hWnd, false)
@@ -288,7 +288,7 @@ internal class ComposeWindowProcedure(
                         }
                     }
                 }
-                User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
             }
 
             WM_SETTINGCHANGE -> {
@@ -299,7 +299,7 @@ internal class ComposeWindowProcedure(
                     windowFrameColor = currentAccentColor()
                     isWindowFrameAccentColorEnabled = isAccentColorWindowFrame()
                 }
-                User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
             }
 
             else -> {
@@ -308,17 +308,17 @@ internal class ComposeWindowProcedure(
                 }
                 if (uMsg == WM_NCMOUSEMOVE) {
                      skiaLayerProcedure?.let {
-                        User32Extend.Companion.instance?.PostMessage(it.contentHandle, uMsg, wParam, lParam)
+                        User32Extend.instance?.PostMessage(it.contentHandle, uMsg, wParam, lParam)
                     }
                 }
-                User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+                User32Extend.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
             }
         }
     }
 
     // Force update window info that resolve the hit test result is incorrect when user moving window to another monitor.
     private fun updateWindowInfo() {
-        User32Extend.Companion.instance?.apply {
+        User32Extend.instance?.apply {
             dpi = GetDpiForWindow(windowHandle)
             frameX = GetSystemMetricsForDpi(WinUser.SM_CXFRAME, dpi)
             frameY = GetSystemMetricsForDpi(WinUser.SM_CYFRAME, dpi)
@@ -335,7 +335,7 @@ internal class ComposeWindowProcedure(
 
     private fun updateMenuItemInfo(menu: HMENU, menuItemInfo: MENUITEMINFO, item: Int, enabled: Boolean) {
         menuItemInfo.fState = if (enabled) WinUserConst.MFS_ENABLED else WinUserConst.MFS_DISABLED
-        User32Extend.Companion.instance?.SetMenuItemInfo(menu, item, false, menuItemInfo)
+        User32Extend.instance?.SetMenuItemInfo(menu, item, false, menuItemInfo)
     }
 
     fun currentAccentColor(): Color {
