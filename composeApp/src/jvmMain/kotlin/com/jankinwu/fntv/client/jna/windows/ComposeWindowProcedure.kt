@@ -64,6 +64,11 @@ internal class ComposeWindowProcedure(
     private val hitTest: (x: Float, y: Float) -> Int,
     private val onWindowInsetUpdate: (WindowInsets) -> Unit
 ) : WindowProcedure {
+    companion object {
+        private const val WM_ERASEBKGND = 0x0014
+        private const val WM_WINDOWPOSCHANGED = 0x0047
+    }
+
     private val logger = Logger.withTag("ComposeWindowProcedure")
 
     private val windowPointer = (this.window as? ComposeWindow)
@@ -169,28 +174,32 @@ internal class ComposeWindowProcedure(
                             left = if (isMaximized) {
                                 frameX + padding
                             } else {
-                                edgeX
+                                0
                             },
                             right = if (isMaximized) {
                                 frameX + padding
                             } else {
-                                edgeX
+                                0
                             },
                             top = if (isMaximized) {
                                 frameY + padding
                             } else {
-                                edgeY
+                                0
                             },
                             bottom = if (isMaximized) {
                                 frameY + padding
                             } else {
-                                edgeY
+                                0
                             }
                         )
                     )
                     LRESULT(0)
                 }
 
+            }
+
+            WM_ERASEBKGND -> {
+                return LRESULT(1)
             }
 
             WM_NCHITTEST -> {
@@ -206,6 +215,20 @@ internal class ComposeWindowProcedure(
                 width = lParam.toInt() and 0xFFFF
                 height = (lParam.toInt() shr 16) and 0xFFFF
                 User32Extend.Companion.instance?.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam) ?: LRESULT(0)
+            }
+
+            WM_WINDOWPOSCHANGED -> {
+                User32Extend.Companion.instance?.let { user32 ->
+                    user32.CallWindowProc(defaultWindowProcedure, hWnd, uMsg, wParam, lParam)
+                    // 强制重绘，解决全屏切换时的渲染异常（白色色块）
+                    user32.RedrawWindow(
+                        hWnd,
+                        null,
+                        null,
+                        WinUser.RDW_INVALIDATE or WinUser.RDW_UPDATENOW or WinUser.RDW_FRAME or WinUser.RDW_ALLCHILDREN
+                    )
+                    LRESULT(0)
+                } ?: LRESULT(0)
             }
 
             WM_NCRBUTTONUP -> {
