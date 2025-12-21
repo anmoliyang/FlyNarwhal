@@ -16,7 +16,7 @@ object AppSettingsStore {
         set(value) = settings.set(scopedKey("github_resource_proxy_url"), value)
 
     var isFollowingSystemTheme: Boolean
-        get() = settings.getBoolean(scopedKey("is_following_system_theme"), true)
+        get() = settings.getBoolean(scopedKey("is_following_system_theme"), false)
         set(value) = settings.set(scopedKey("is_following_system_theme"), value)
 
     var darkMode: Boolean

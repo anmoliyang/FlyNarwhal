@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -80,6 +81,9 @@ import io.github.composefluent.icons.regular.ArrowUpRight
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Navigation
+import io.github.composefluent.icons.regular.Person
+import io.github.composefluent.icons.regular.WeatherMoon
+import io.github.composefluent.icons.regular.WeatherSunny
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -165,7 +169,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("主题模式")
                     },
                     icon = {
-                        Icon(Icons.Regular.Color, contentDescription = null)
+                        Icon(Icons.Regular.Color, contentDescription = null, modifier = Modifier.size(18.dp))
                     },
                     caption = {
                         Text("是否跟随系统主题")
@@ -189,18 +193,18 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                 ) {
                     CardExpanderItem(
                         heading = {
-                            Text("深色模式")
+                            Text("颜色")
                         },
                         icon = {
-                            Icon(Icons.Regular.Color, contentDescription = null)
+                            Icon(if (store.darkMode) Icons.Regular.WeatherMoon else Icons.Regular.WeatherSunny, contentDescription = null, modifier = Modifier.size(18.dp))
                         },
                         caption = {
-                            Text("请选择是否使用深色模式")
+                            Text("请选择主题颜色")
                         },
                         trailing = {
                             Switcher(
                                 checked = store.darkMode,
-                                text = if (store.darkMode) "是" else "否",
+                                text = if (store.darkMode) "深色" else "浅色",
                                 textBefore = true,
                                 onCheckStateChange = {
                                     store.darkMode = it
@@ -343,7 +347,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                 CardExpanderItem(
                     heading = { Text("抢先体验") },
                     caption = { Text("检测更新时是否包括预发布版本 (Alpha, Beta)") },
-                    icon = { Icon(PreRelease, null, modifier = Modifier.size(18.dp)) },
+                    icon = { Icon(PreRelease, null, modifier = Modifier.size(16.dp)) },
                     trailing = {
                         Switcher(
                             checked = includePrerelease,
@@ -490,9 +494,46 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。")
                     }
                 )
-
+                val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
                 // 添加登出按钮
-                Header("账户")
+                Header("账号")
+                CardExpanderItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Regular.Person,
+                            contentDescription = "用户",
+                            modifier = Modifier
+                                .size(18.dp)
+                        )
+                    },
+                    heading = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(userInfo?.username ?: "")
+                            if (userInfo?.isAdmin == 1) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "管理员",
+                                        style = FluentTheme.typography.caption,
+                                        color = Colors.AccentColorDefault,
+                                        modifier = Modifier
+//                                            .padding(start = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    caption = {
+                        Text("FN_Media")
+                    }
+                )
                 CardExpanderItem(
                     icon = {
                         Icon(
@@ -506,7 +547,7 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("退出登录")
                     },
                     caption = {
-                        Text("Sign out of your account")
+                        Text("退出当前账号")
                     },
                     onClick = {
                         LoginStateManager.logout(logoutViewModel)
