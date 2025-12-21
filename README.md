@@ -151,6 +151,10 @@
 - [fntv-electron](https://github.com/QiaoKes/fntv-electron) - 飞牛影视PC版 electron 封装
 - [fnos-tv](https://github.com/thshu/fnos-tv) - 基于飞牛影视接口开发的网页端
 
+感谢以下飞牛共建团队成员在内测期间提供了宝贵的技术支持和建议：
+
+@[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
+
 ## 🌟 Star History
 
 <a href="https://github.com/FNOSP/fntv-client-multiplatform/stargazers" target="_blank" style="display: block" align="center">
