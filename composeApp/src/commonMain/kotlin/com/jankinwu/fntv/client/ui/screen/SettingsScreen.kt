@@ -45,6 +45,7 @@ import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.constants.Constants
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
+import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
@@ -88,9 +89,11 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val updateViewModel: UpdateViewModel = koinViewModel()
     val updateStatus by updateViewModel.status.collectAsState()
     val latestVersion by updateViewModel.latestVersion.collectAsState()
-    var proxyUrl by remember { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
-    var includePrerelease by remember { mutableStateOf(AppSettingsStore.includePrerelease) }
-    var autoDownloadUpdates by remember { mutableStateOf(AppSettingsStore.autoDownloadUpdates) }
+    val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
+    val guid = userInfo?.guid.orEmpty()
+    var proxyUrl by remember(guid) { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
+    var includePrerelease by remember(guid) { mutableStateOf(AppSettingsStore.includePrerelease) }
+    var autoDownloadUpdates by remember(guid) { mutableStateOf(AppSettingsStore.autoDownloadUpdates) }
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
