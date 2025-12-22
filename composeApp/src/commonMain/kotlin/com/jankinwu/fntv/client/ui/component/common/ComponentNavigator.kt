@@ -23,8 +23,8 @@ interface ComponentNavigator {
 }
 
 @Composable
-fun rememberComponentNavigator(): ComponentNavigator {
-    return remember { ComponentNavigatorImpl() }
+fun rememberComponentNavigator(key: Any? = Unit): ComponentNavigator {
+    return remember(key) { ComponentNavigatorImpl() }
 }
 
 private class ComponentNavigatorImpl() : ComponentNavigator {
