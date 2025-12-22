@@ -79,7 +79,8 @@ fun main() = application {
             title = title,
             icon = icon
         ) {
-            val navigator = rememberComponentNavigator()
+            val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
+            val navigator = rememberComponentNavigator(isLoggedIn)
             val playerManager = remember { PlayerManager() }
             val player = rememberMediampPlayer()
             val userInfoViewModel: UserInfoViewModel = koinViewModel()
@@ -153,14 +154,14 @@ fun main() = application {
                     backButtonVisible = false
                 ) { windowInset, contentInset ->
                     // 使用LoginStateManagement来管理登录状态
-                    val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
-
-                    // 校验cookie是否有效
-                    LaunchedEffect(Unit) {
+                    LaunchedEffect(isLoggedIn) {
                         if (isLoggedIn) {
-                            userInfoViewModel.loadUserInfo()
+                            userInfoViewModel.refresh()
                         }
-                        if (userInfoState is UiState.Error) {
+                    }
+
+                    LaunchedEffect(userInfoState, isLoggedIn) {
+                        if (isLoggedIn && userInfoState is UiState.Error) {
                             LoginStateManager.updateLoginStatus(false)
                         }
                     }

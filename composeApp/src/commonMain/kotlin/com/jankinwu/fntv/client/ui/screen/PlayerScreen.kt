@@ -5,6 +5,7 @@ package com.jankinwu.fntv.client.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +53,7 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -1042,13 +1044,22 @@ fun PlayerOverlay(
                 MediampPlayerSurface(
                     mediaPlayer, Modifier
                         .size(maxWidth, maxHeight)
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = {
-                                mediaPlayer.togglePause()
-                            }
-                        )
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    mediaPlayer.togglePause()
+                                },
+                                onDoubleTap = {
+                                    if (windowState.placement == WindowPlacement.Fullscreen) {
+                                        windowState.placement = WindowPlacement.Floating
+                                        AppSettingsStore.playerIsFullscreen = false
+                                    } else {
+                                        windowState.placement = WindowPlacement.Fullscreen
+                                        AppSettingsStore.playerIsFullscreen = true
+                                    }
+                                }
+                            )
+                        }
                         .onPointerEvent(PointerEventType.Move) {
                             // 鼠标移动时更新时间并显示UI
                             lastMouseMoveTime = System.currentTimeMillis()
@@ -1871,8 +1882,8 @@ private suspend fun startPlayback(
     extraFiles: MediaExtraFiles,
     isM3u8: Boolean = false
 ) {
-    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
-    var baseUrl = if (AccountDataCache.cookieState.isNotBlank() && isDirectLink) {
+//    val isDirectLink = playLink.contains("/v/api/v1/media/range/")
+    var baseUrl = if (AccountDataCache.cookieState.isNotBlank()) {
         AccountDataCache.getProxyBaseUrl()
     } else {
         AccountDataCache.getFnOfficialBaseUrl()
@@ -1902,11 +1913,7 @@ private suspend fun startPlayback(
             )
         }
     }
-    if (!isDirectLink) {
-        delay(1000) // 等待播放器初始化
-    } else {
-        delay(200)
-    }
+    delay(300)
     player.features[PlaybackSpeed]?.set(1.0f)
     // 恢复音量
     val savedVolume = PlayingSettingsStore.getVolume()

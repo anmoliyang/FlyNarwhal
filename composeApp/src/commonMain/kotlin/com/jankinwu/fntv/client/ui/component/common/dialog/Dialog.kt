@@ -32,19 +32,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.jankinwu.fntv.client.ui.providable.LocalStore
-import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.icons.Warning
 import com.jankinwu.fntv.client.ui.customAccentButtonColors
 import com.jankinwu.fntv.client.ui.customDangerButtonColors
+import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.screen.HintColor
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.LocalContentColor
 import io.github.composefluent.LocalTextStyle
 import io.github.composefluent.component.AccentButton
 import io.github.composefluent.component.Button
-import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FluentDialog
@@ -53,21 +52,29 @@ import io.github.composefluent.component.Text
 @Composable
 fun ForgotPasswordDialog() {
     var displayDialog by remember { mutableStateOf(false) }
-    ContentDialog(
-        title = "忘记密码",
-        visible = displayDialog,
-        size = DialogSize.Standard,
-        primaryButtonText = "Confirm",
-//        closeButtonText = "Cancel",
-        onButtonClick = { displayDialog = false },
-        content = {
-            Text(
-                "1. 如果您是 NAS 用户，请尝试 NAS 登录；" +
-                        "\n" +
-                        "2. 请联系管理员修改密码。"
-            )
+    if (displayDialog) {
+        FluentDialog(
+            visible = true,
+            size = DialogSize.Standard
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text("忘记密码", style = FluentTheme.typography.subtitle)
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "1. 如果您是 NAS 用户，请尝试 NAS 登录；" +
+                            "\n" +
+                            "2. 请联系管理员修改密码。"
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    DialogAccentButton("好的", onClick = { displayDialog = false })
+                }
+            }
         }
-    )
+    }
     TextButton(onClick = { displayDialog = true }) {
         androidx.compose.material3.Text("忘记密码?", color = HintColor, fontSize = 14.sp)
     }

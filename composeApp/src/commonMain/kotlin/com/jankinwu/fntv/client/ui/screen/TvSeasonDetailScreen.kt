@@ -495,10 +495,16 @@ fun TvEpisodeBody(
 
                 item {
                     logger.i("episodeList: $episodeList")
+                    val currentEpisodeIndex = remember(episodeList, playInfo) {
+                        playInfo?.item?.episodeNumber?.let { episodeNumber ->
+                            episodeList.indexOfFirst { it.episodeNumber == episodeNumber }
+                        } ?: 0
+                    }
                     EpisodesScrollRow(
                         episodes = episodeList,
                         navigator,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                        initialIndex = if (currentEpisodeIndex != -1) currentEpisodeIndex else 0
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }

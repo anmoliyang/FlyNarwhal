@@ -1,5 +1,6 @@
 package com.jankinwu.fntv.client.manager
 
+import com.jankinwu.fntv.client.components
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
@@ -34,6 +35,8 @@ object LoginStateManager {
 //            AccountDataCache.cookieMap = mutableMapOf()
             AccountDataCache.clearCookie()
             UserInfoMemoryCache.clear()
+            // 清理组件列表，确保切换用户后重新生成
+            components.clear()
         }
 
         // 持久化登录状态

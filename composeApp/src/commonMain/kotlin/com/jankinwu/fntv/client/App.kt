@@ -39,6 +39,7 @@ import coil3.memory.MemoryCache
 import coil3.request.CachePolicy
 import coil3.request.crossfade
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.enums.Category
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.icons.CategoryIcon
@@ -242,7 +243,7 @@ fun Navigation(
         },
         menuItems = {
             components.forEach { navItem ->
-                item {
+                item(key = navItem.guid) {
                     MenuItem(
                         navigator.latestBackEntry,
                         navigator::navigate,
@@ -571,11 +572,26 @@ fun MediaLibraryNavigationComponent() {
 
     val mediaDbListViewModel: MediaDbListViewModel = koinViewModel<MediaDbListViewModel>()
     val mediaUiState by mediaDbListViewModel.uiState.collectAsState()
+    val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
     val refreshState = LocalRefreshState.current
+    var lastRefreshKey by remember { mutableStateOf("") }
+
+    // 监听用户信息变化，当切换用户时重新加载媒体库列表
+    LaunchedEffect(userInfo) {
+        if (userInfo != null) {
+            mediaDbListViewModel.loadData()
+        } else {
+            // 当用户信息为空（登出）时，清理媒体库 UI 状态
+            mediaDbListViewModel.clearError()
+        }
+    }
+
     // 监听刷新状态变化
     LaunchedEffect(refreshState.refreshKey) {
         // 当刷新状态变化时执行刷新逻辑
-        if (refreshState.refreshKey.isNotEmpty()) {
+        if (refreshState.refreshKey.isNotEmpty() && refreshState.refreshKey != lastRefreshKey) {
+            lastRefreshKey = refreshState.refreshKey
+            refreshState.onRefresh()
             mediaDbListViewModel.loadData()
         }
     }
@@ -672,8 +688,8 @@ fun MediaLibraryNavigationComponent() {
 
                 // 更新或添加到components列表中
                 if (mediaLibraryIndex >= 0) {
-                    // 如果已存在，更新它
-                    components[mediaLibraryIndex] = mediaLibraryComponent
+                    components.removeAt(mediaLibraryIndex)
+                    components.add(mediaLibraryIndex, mediaLibraryComponent)
                 } else {
                     // 如果不存在，添加到列表末尾
                     components.add(mediaLibraryComponent)
@@ -690,6 +706,9 @@ fun MediaLibraryNavigationComponent() {
                 val categoryIndex = components.indexOfFirst { it.name == "分类" }
                 if (categoryIndex < 0) {
                     components.add(categoryParentComponent)
+                } else {
+                    components.removeAt(categoryIndex)
+                    components.add(categoryIndex, categoryParentComponent)
                 }
             }
 
