@@ -214,12 +214,10 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.支持配置信息根据登录用户隔离存储 
-          2.修复播放器全屏模式从最小化恢复后视频画面不显示的问题 
-          3.修复电视节目分季列表不显示的的问题 
-          4.解决登录界面输入密码时会调用输入法的问题 
-          5.修复播放器界面鼠标移出播放器，播放器 UI 不隐藏的问题 
-          6.优化 UI 方面用户体验
+          NOTES="1.剧集季详情页中的剧集列表现在会滚动至当前播放的剧集  
+          2.播放器支持双击切换全屏/窗口模式
+          3.优化视频起播延迟时间
+          4.优化 UI 方面用户体验
           　  
           感谢以下飞牛共建团队成员在内测期间提供了宝贵的技术支持和建议：  
           @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如  
