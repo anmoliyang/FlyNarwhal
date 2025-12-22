@@ -88,8 +88,16 @@ fun EpisodesScrollRow(
     episodes: List<EpisodeListResponse>,
     navigator: ComponentNavigator,
     modifier: Modifier = Modifier,
+    initialIndex: Int = 0,
 ) {
     val scrollState = rememberLazyListState()
+    
+    // 监听初始索引变化并滚动到指定位置
+    androidx.compose.runtime.LaunchedEffect(initialIndex) {
+        if (initialIndex >= 0 && initialIndex < episodes.size) {
+            scrollState.scrollToItem(initialIndex)
+        }
+    }
     val scrollRowItemDataList = FnDataConvertor.convertToScrollRowItemDataList(episodes)
     val favoriteViewModel: FavoriteViewModel = koinViewModel<FavoriteViewModel>()
     val favoriteUiState by favoriteViewModel.uiState.collectAsState()
