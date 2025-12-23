@@ -50,12 +50,14 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
+import com.jankinwu.fntv.client.icons.SkipLink
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
+import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
@@ -461,26 +463,27 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text(Constants.PROJECT_URL)
                     },
                     trailing = {
-                        Button(
-                            onClick = {
-                                uriHandler.openUri(Constants.PROJECT_URL)
-                            },
-                            modifier = Modifier
-                                .pointerHoverIcon(PointerIcon.Hand)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("访问仓库")
-                                Icon(
-                                    imageVector = Icons.Regular.ArrowUpRight,
-                                    contentDescription = "访问仓库",
-                                    modifier = Modifier
-                                        .padding(start = 4.dp)
-                                        .size(12.dp)
-                                )
-                            }
-                        }
+                        AboutDialog()
+//                        Button(
+//                            onClick = {
+//                                uriHandler.openUri(Constants.PROJECT_URL)
+//                            },
+//                            modifier = Modifier
+//                                .pointerHoverIcon(PointerIcon.Hand)
+//                        ) {
+//                            Row(
+//                                verticalAlignment = Alignment.CenterVertically
+//                            ) {
+//                                Text("访问仓库")
+//                                Icon(
+//                                    imageVector = SkipLink,
+//                                    contentDescription = "访问仓库",
+//                                    modifier = Modifier
+//                                        .padding(start = 4.dp)
+//                                        .size(14.dp)
+//                                )
+//                            }
+//                        }
                     },
                 )
                 CardExpanderItem(
