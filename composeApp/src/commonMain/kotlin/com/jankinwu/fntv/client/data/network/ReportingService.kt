@@ -1,21 +1,24 @@
 package com.jankinwu.fntv.client.data.network
 
+import co.touchlab.kermit.Logger
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.jankinwu.fntv.client.BuildConfig
 import com.jankinwu.fntv.client.utils.Context
-import com.jankinwu.fntv.client.utils.getDeviceId
 import com.jankinwu.fntv.client.utils.PlatformInfo
+import com.jankinwu.fntv.client.utils.getDeviceId
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
-import io.ktor.client.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.jackson.*
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+import io.ktor.serialization.jackson.jackson
 import korlibs.crypto.MD5
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import co.touchlab.kermit.Logger
-import kotlinx.serialization.encodeToString
 import kotlin.time.ExperimentalTime
 
 /**
@@ -35,12 +38,6 @@ class ReportingService(private val context: Context) {
         install(ContentNegotiation) {
             jackson()
         }
-    }
-    
-    private val json = kotlinx.serialization.json.Json {
-        encodeDefaults = true
-        isLenient = true
-        ignoreUnknownKeys = true
     }
 
     /**
@@ -88,7 +85,7 @@ class ReportingService(private val context: Context) {
                     contentType(ContentType.Application.Json)
                     setBody(sortedBody + ("signature" to signature))
                 }
-
+                logger.i("Reporting request body: $sortedBody, signature=$signature")
                 if (response.status.isSuccess()) {
                     settings[reportKey] = currentVersion
                     logger.i { "Successfully reported launch for version $currentVersion" }
@@ -102,13 +99,15 @@ class ReportingService(private val context: Context) {
         }
     }
 
+    private val objectMapper = jacksonObjectMapper()
+    
     /**
      * Generates a MD5 signature to verify the request integrity.
      * The signature is a hash of (compressed JSON body + secret).
      */
     private fun generateSignature(deviceId: String, timestamp: Long): String {
         val currentVersion = BuildConfig.VERSION_NAME
-        val bodyMap = mutableMapOf<String, Any>(
+        val bodyMap = mapOf(
             "deviceId" to deviceId,
             "osName" to PlatformInfo.osName,
             "osArch" to PlatformInfo.osArch,
@@ -120,17 +119,10 @@ class ReportingService(private val context: Context) {
         val sortedKeys = bodyMap.keys.sorted()
         val sortedBody = sortedKeys.associateWith { bodyMap[it]!! }
         
-        // Generate signature using compressed JSON string
-        val jsonString = json.encodeToString(kotlinx.serialization.json.JsonObject(
-            sortedBody.mapValues { (_, value) -> 
-                when(value) {
-                    is String -> kotlinx.serialization.json.JsonPrimitive(value)
-                    is Long -> kotlinx.serialization.json.JsonPrimitive(value)
-                    else -> kotlinx.serialization.json.JsonPrimitive(value.toString())
-                }
-            }
-        ))
+        // Generate signature using compressed JSON string (matching backend Jackson logic)
+        val jsonString = objectMapper.writeValueAsString(sortedBody)
+        val compressedJson = jsonString.replace("\\s".toRegex(), "")
         
-        return MD5.digest((jsonString + apiSecret).encodeToByteArray()).hex
+        return MD5.digest((compressedJson + apiSecret).encodeToByteArray()).hex
     }
 }

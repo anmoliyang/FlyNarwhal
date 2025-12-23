@@ -7,12 +7,30 @@ actual fun getDeviceId(context: Context): String {
         val systemInfo = SystemInfo()
         val hardware = systemInfo.hardware
         val computerSystem = hardware.computerSystem
+        
+        // List of common placeholder values to ignore
+        val invalidValues = setOf(
+            "unknown", "none", "default string", "to be filled by o.e.m.", 
+            "00000000-0000-0000-0000-000000000000", "not available",
+             "system serial number", "chassis serial number", "to be filled by oem",
+             "system product name", "to be filled by o.e.m."
+        )
+        
+        fun String?.isValidId(): Boolean {
+            if (this.isNullOrBlank()) return false
+            val lower = this.lowercase().trim()
+            // Check if it's one of the known invalid strings or just a bunch of zeros/ones/Xs
+            if (lower in invalidValues) return false
+            if (lower.all { it == '0' || it == '1' || it == 'x' || it == '-' }) return false
+            return lower.length > 3 // Too short is probably invalid
+        }
+
         // Try to get serial number, if not available use hardware UUID, then fallback to baseboard serial
-        computerSystem.serialNumber.takeIf { it.isNotBlank() && it != "unknown" }
-            ?: computerSystem.hardwareUUID.takeIf { it.isNotBlank() && it != "unknown" }
-            ?: computerSystem.baseboard.serialNumber.takeIf { it.isNotBlank() && it != "unknown" }
-            ?: "unknown_jvm"
-    } catch (e: Exception) {
+        computerSystem.serialNumber.takeIf { it.isValidId() }
+            ?: computerSystem.hardwareUUID.takeIf { it.isValidId() }
+            ?: computerSystem.baseboard.serialNumber.takeIf { it.isValidId() }
+            ?: "unknown_jvm_${System.getProperty("user.name")}" // Fallback to username if hardware fails
+    } catch (_: Exception) {
         "error_jvm"
     }
 }
