@@ -115,6 +115,7 @@ import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
 import com.jankinwu.fntv.client.ui.component.player.PlayerSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
+import com.jankinwu.fntv.client.ui.component.player.speeds
 import com.jankinwu.fntv.client.ui.component.player.SubtitleControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
 import com.jankinwu.fntv.client.data.model.SubtitleSettings
@@ -1512,7 +1513,18 @@ fun PlayerControlRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 倍速
+            val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
+            
+            // 直接访问 State 的 value 属性以触发重组
+            val speedStateValue = playbackSpeedFeature?.value
+            val currentSpeedValue = (speedStateValue as? Number)?.toFloat() ?: 1f
+
+            val currentSpeedItem = remember(currentSpeedValue) {
+                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f } ?: speeds.find { it.value == 1.0f } ?: speeds[4]
+            }
+
             SpeedControlFlyout(
+                defaultSpeed = currentSpeedItem,
                 yOffset = 70,
                 onHoverStateChanged = onSpeedControlHoverChanged,
                 onSpeedSelected = { item ->
