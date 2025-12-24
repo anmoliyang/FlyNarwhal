@@ -31,7 +31,7 @@ jobs:
 
       - name: Build MacOS DMG (Apple Silicon)
         # 执行 Compose Desktop 的打包任务
-        run: ./gradlew :composeApp:packageReleaseDmg
+        run: ./gradlew :composeApp:packageReleaseDmg --no-configuration-cache
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
@@ -137,7 +137,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Create Release Distributable
-        run: ./gradlew :composeApp:createReleaseDistributable
+        run: ./gradlew :composeApp:createReleaseDistributable --no-configuration-cache
         env:
           REPORT_API_SECRET: ${{ secrets.REPORT_API_SECRET }}
           REPORT_URL: ${{ secrets.REPORT_URL }}
