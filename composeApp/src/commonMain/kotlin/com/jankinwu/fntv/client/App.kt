@@ -82,7 +82,7 @@ import okhttp3.Response
 import okio.FileSystem
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import com.jankinwu.fntv.client.data.network.ReportingService
+import com.jankinwu.fntv.client.data.network.impl.ReportingService
 import com.jankinwu.fntv.client.utils.LocalContext
 
 val components = mutableStateListOf<ComponentItem>()

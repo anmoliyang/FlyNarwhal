@@ -1,4 +1,4 @@
-package com.jankinwu.fntv.client.data.network
+package com.jankinwu.fntv.client.data.network.impl
 
 import co.touchlab.kermit.Logger
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -31,7 +31,7 @@ class ReportingService(private val context: Context) {
     private val logger = Logger.withTag("ReportingService")
     private val settings = Settings()
     private val lastReportInfoKey = "last_report_info"
-    
+
     // Values injected during build from GitHub Secrets or environment variables
     private val apiSecret = BuildConfig.REPORT_API_SECRET
     private val reportUrl = BuildConfig.REPORT_URL
@@ -51,7 +51,7 @@ class ReportingService(private val context: Context) {
         val currentVersion = BuildConfig.VERSION_NAME
         val today = kotlin.time.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
         val currentReportInfo = "$currentVersion|$today"
-        
+
         val lastReportInfo = settings.getString(lastReportInfoKey, "")
 
         if (apiSecret.isBlank() || reportUrl.isBlank()) {
@@ -67,25 +67,29 @@ class ReportingService(private val context: Context) {
 
         withContext(Dispatchers.Default) {
             try {
-                val deviceId = getDeviceId(context)
+                val deviceIdResult = getDeviceId(context)
+                val deviceId = deviceIdResult.id
+                val deviceIdType = deviceIdResult.type
                 val timestamp = kotlin.time.Clock.System.now().toEpochMilliseconds()
-                
+
                 val bodyMap = mapOf<String, Any>(
                     "deviceId" to deviceId,
+                    "deviceIdType" to deviceIdType,
                     "osName" to PlatformInfo.osName,
                     "osArch" to PlatformInfo.osArch,
+                    "cpuModel" to PlatformInfo.cpuModel,
                     "version" to currentVersion,
                     "timestamp" to timestamp
                 )
-                
+
                 // Sort keys to ensure consistent JSON string
                 val sortedKeys = bodyMap.keys.sorted()
                 val sortedBody = sortedKeys.associateWith { bodyMap[it]!! }
-                
-                val signature = generateSignature(deviceId, timestamp)
+
+                val signature = generateSignature(sortedBody)
 
                 logger.i { "Reporting launch: deviceId=$deviceId, version=$currentVersion" }
-                
+
                 val response = client.post(reportUrl) {
                     contentType(ContentType.Application.Json)
                     setBody(sortedBody + ("signature" to signature))
@@ -97,7 +101,7 @@ class ReportingService(private val context: Context) {
                 } else {
                     logger.e { "Failed to report launch: ${response.status}" }
                 }
-                
+
             } catch (e: Exception) {
                 logger.e(e) { "Error reporting launch" }
             }
@@ -105,29 +109,20 @@ class ReportingService(private val context: Context) {
     }
 
     private val objectMapper = jacksonObjectMapper()
-    
+
     /**
      * Generates a MD5 signature to verify the request integrity.
      * The signature is a hash of (compressed JSON body + secret).
      */
-    private fun generateSignature(deviceId: String, timestamp: Long): String {
-        val currentVersion = BuildConfig.VERSION_NAME
-        val bodyMap = mapOf(
-            "deviceId" to deviceId,
-            "osName" to PlatformInfo.osName,
-            "osArch" to PlatformInfo.osArch,
-            "version" to currentVersion,
-            "timestamp" to timestamp
-        )
-        
+    private fun generateSignature(bodyMap: Map<String, Any>): String {
         // Sort keys to ensure consistent JSON string
         val sortedKeys = bodyMap.keys.sorted()
         val sortedBody = sortedKeys.associateWith { bodyMap[it]!! }
-        
+
         // Generate signature using compressed JSON string (matching backend Jackson logic)
         val jsonString = objectMapper.writeValueAsString(sortedBody)
         val compressedJson = jsonString.replace("\\s".toRegex(), "")
-        
+
         return MD5.digest((compressedJson + apiSecret).encodeToByteArray()).hex
     }
 }

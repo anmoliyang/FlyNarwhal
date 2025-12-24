@@ -6,4 +6,5 @@ package com.jankinwu.fntv.client.utils
 expect object PlatformInfo {
     val osName: String
     val osArch: String
+    val cpuModel: String
 }
