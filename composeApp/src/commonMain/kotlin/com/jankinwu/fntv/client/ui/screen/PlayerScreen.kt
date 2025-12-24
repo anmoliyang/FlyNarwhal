@@ -192,6 +192,11 @@ data class PlayerState(
 
 class PlayerManager {
     var playerState: PlayerState by mutableStateOf(PlayerState())
+    var keyFocusRequestSerial: Int by mutableIntStateOf(0)
+
+    fun requestKeyFocus() {
+        keyFocusRequestSerial++
+    }
 
     fun showPlayer(
         itemGuid: String,
@@ -892,15 +897,28 @@ fun PlayerOverlay(
     var surfaceRecreateKey by remember { mutableIntStateOf(0) }
     var lastMinimized by remember { mutableStateOf(isMinimized) }
     var lastWindowFocused by remember { mutableStateOf(isWindowFocused) }
+    val focusRequester = remember { FocusRequester() }
+    val keyFocusRequestSerial = playerManager.keyFocusRequestSerial
 
     LaunchedEffect(isMinimized, isWindowFocused) {
         val restoredFromMinimize = lastMinimized && !isMinimized
         val regainedFocus = !lastWindowFocused && isWindowFocused
         if (restoredFromMinimize || regainedFocus) {
             surfaceRecreateKey++
+            if (isWindowFocused) {
+                focusRequester.requestFocus()
+                delay(50)
+                focusRequester.requestFocus()
+            }
         }
         lastMinimized = isMinimized
         lastWindowFocused = isWindowFocused
+    }
+
+    LaunchedEffect(keyFocusRequestSerial) {
+        focusRequester.requestFocus()
+        delay(50)
+        focusRequester.requestFocus()
     }
 
     // region Window Resize Logic
@@ -998,10 +1016,10 @@ fun PlayerOverlay(
             }
     }
     // endregion
-
-    val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit, windowState.placement) {
-        focusRequester.requestFocus()
+    LaunchedEffect(windowState.placement, isWindowFocused) {
+        if (isWindowFocused) {
+            focusRequester.requestFocus()
+        }
     }
 
     CompositionLocalProvider(

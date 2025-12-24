@@ -96,7 +96,7 @@ class ReportingService(private val context: Context) {
                     contentType(ContentType.Application.Json)
                     setBody(sortedBody + ("signature" to signature))
                 }
-                logger.i("Reporting request body: $sortedBody, signature=$signature")
+                logger.i("Reporting request body: $sortedBody")
                 if (response.status.isSuccess()) {
                     settings[lastReportInfoKey] = currentReportInfo
                     logger.i { "Successfully reported launch for version $currentVersion on $today" }
