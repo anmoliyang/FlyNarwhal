@@ -520,8 +520,11 @@ fun PlayerOverlay(
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
                     val adjustedPos = currentPos - (subtitleSettings.offsetSeconds * 1000).toLong()
-                    subtitleCues = hlsSubtitleUtil.getCurrentSubtitle(adjustedPos)
-                    delay(50)
+                    val newCues = hlsSubtitleUtil.getCurrentSubtitle(adjustedPos)
+                    if (subtitleCues != newCues) {
+                        subtitleCues = newCues
+                    }
+                    delay(16)
                 }
             }
         } else if (externalSubtitleUtil != null) {
@@ -529,8 +532,11 @@ fun PlayerOverlay(
                 while (isActive) {
                     val currentPos = mediaPlayer.getCurrentPositionMillis()
                     val adjustedPos = currentPos - (subtitleSettings.offsetSeconds * 1000).toLong()
-                    subtitleCues = externalSubtitleUtil.getCurrentSubtitle(adjustedPos)
-                    delay(50)
+                    val newCues = externalSubtitleUtil.getCurrentSubtitle(adjustedPos)
+                    if (subtitleCues != newCues) {
+                        subtitleCues = newCues
+                    }
+                    delay(16)
                 }
             }
         } else {
