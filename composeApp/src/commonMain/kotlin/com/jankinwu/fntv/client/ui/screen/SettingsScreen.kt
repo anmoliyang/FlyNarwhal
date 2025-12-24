@@ -58,6 +58,7 @@ import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.ComponentItem
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
+import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.providable.LocalStore
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
@@ -100,10 +101,12 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var proxyUrl by remember(guid) { mutableStateOf(AppSettingsStore.githubResourceProxyUrl) }
     var includePrerelease by remember(guid) { mutableStateOf(AppSettingsStore.includePrerelease) }
     var autoDownloadUpdates by remember(guid) { mutableStateOf(AppSettingsStore.autoDownloadUpdates) }
+//    var isHardwareInfoReportingEnabled by remember(guid) { mutableStateOf(AppSettingsStore.isHardwareInfoReportingEnabled) }
     val scrollState = rememberScrollState()
     val uriHandler = LocalUriHandler.current
     val focusManager = LocalFocusManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showHardwareInfoDialog by remember { mutableStateOf(false) }
 
     UpdateDialog(
         status = updateStatus,
@@ -129,6 +132,20 @@ fun SettingsScreen(navigator: ComponentNavigator) {
             showUpdateDialog = false
         }
     )
+
+    if (showHardwareInfoDialog) {
+        CustomContentDialog(
+            title = "隐私声明",
+            visible = true,
+            primaryButtonText = "我知道了",
+            onButtonClick = {
+                showHardwareInfoDialog = false
+            },
+            content = {
+                Text("为了改进软件性能，我们会收集部分硬件信息（如 CPU、GPU 型号等）作为参考依据。这些信息将仅用于优化软件，不会涉及个人隐私。")
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -163,6 +180,66 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     .padding(top = 8.dp)
                     .padding(bottom = 24.dp)
             ) {
+                val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
+
+                Header("账号")
+                CardExpanderItem(
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Regular.Person,
+                            contentDescription = "用户",
+                            modifier = Modifier
+                                .size(18.dp)
+                        )
+                    },
+                    heading = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(userInfo?.username ?: "")
+                            if (userInfo?.isAdmin == 1) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(start = 8.dp)
+                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "管理员",
+                                        style = FluentTheme.typography.caption,
+                                        color = Colors.AccentColorDefault,
+                                        modifier = Modifier
+//                                            .padding(start = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    caption = {
+                        Text("FN_Media")
+                    }
+                )
+                CardExpanderItem(
+                    icon = {
+                        Icon(
+                            imageVector = Logout,
+                            contentDescription = "退出登录",
+                            modifier = Modifier
+                                .size(18.dp)
+                        )
+                    },
+                    heading = {
+                        Text("退出登录")
+                    },
+                    caption = {
+                        Text("退出当前账号")
+                    },
+                    onClick = {
+                        LoginStateManager.logout(logoutViewModel)
+                    }
+                )
+
                 Header("外观")
                 val followSystemTheme = store.isFollowingSystemTheme
 
@@ -437,6 +514,15 @@ fun SettingsScreen(navigator: ComponentNavigator) {
 
                 Header("关于")
                 CardExpanderItem(
+                    heading = { Text("隐私声明") },
+                    caption = { Text("隐私声明") },
+                    icon = { Icon(Statement, null, modifier = Modifier.size(18.dp)) },
+                    onClick = {
+                        showHardwareInfoDialog = true
+                    }
+                )
+
+                CardExpanderItem(
                     heading = {
                         Text("Fntv Client Multiplatform")
                     },
@@ -497,65 +583,8 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         Text("本项目为飞牛 OS 爱好者开发的第三方影视客户端，与飞牛影视官方无关。使用前请确保遵守相关服务条款。")
                     }
                 )
-                val userInfo by UserInfoMemoryCache.userInfo.collectAsState()
-                // 添加登出按钮
-                Header("账号")
-                CardExpanderItem(
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Regular.Person,
-                            contentDescription = "用户",
-                            modifier = Modifier
-                                .size(18.dp)
-                        )
-                    },
-                    heading = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(userInfo?.username ?: "")
-                            if (userInfo?.isAdmin == 1) {
-                                Row(
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
-                                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "管理员",
-                                        style = FluentTheme.typography.caption,
-                                        color = Colors.AccentColorDefault,
-                                        modifier = Modifier
-//                                            .padding(start = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    caption = {
-                        Text("FN_Media")
-                    }
-                )
-                CardExpanderItem(
-                    icon = {
-                        Icon(
-                            imageVector = Logout,
-                            contentDescription = "退出登录",
-                            modifier = Modifier
-                                .size(18.dp)
-                        )
-                    },
-                    heading = {
-                        Text("退出登录")
-                    },
-                    caption = {
-                        Text("退出当前账号")
-                    },
-                    onClick = {
-                        LoginStateManager.logout(logoutViewModel)
-                    }
-                )
+
+
             }
         }
     }
