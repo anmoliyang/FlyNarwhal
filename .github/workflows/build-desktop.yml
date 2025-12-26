@@ -226,10 +226,8 @@ jobs:
         shell: bash
         run: |
           # Define common release notes
-          NOTES="1.修复倍速播放时字幕被跳过的问题  
-          2.修复切换窗口置顶后快捷键不生效的问题  
-          3.优化更新弹窗错误信息显示  
-          4.其他若干 UI 方面的优化  
+          NOTES="1.新增使用 NAS 和 FN Connect 登录的支持  
+          2.修复电视节目切换下一集后快捷键失效的问题  
           　  
           感谢以下飞牛共建团成员反馈问题并协助排查：  
           @[zhengbf](https://club.fnnas.com/home.php?mod=space&uid=187) @[空城](https://club.fnnas.com/home.php?mod=space&uid=2332)  
