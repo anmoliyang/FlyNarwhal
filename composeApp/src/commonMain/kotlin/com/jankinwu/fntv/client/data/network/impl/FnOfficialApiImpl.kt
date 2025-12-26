@@ -280,7 +280,6 @@ class FnOfficialApiImpl() : FnOfficialApi {
             logger.i { "GET request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, parameters: $parameters, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.get("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header("Authx", authx)
-//                header(HttpHeaders.Cookie, AccountDataCache.cookieState)
                 parameters?.forEach { (key, value) ->
                     if (value != null) {
                         parameter(key, value)

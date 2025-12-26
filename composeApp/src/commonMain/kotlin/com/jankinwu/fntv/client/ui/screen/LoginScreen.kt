@@ -112,12 +112,21 @@ val CardBackgroundColor = Color(0xFF1A1D26).copy(alpha = 1f)
 val PrimaryBlue = Color(0xFF3A7BFF)
 val HintColor = Color.Gray
 
+data class FnConnectWindowRequest(
+    val initialUrl: String,
+    val fnId: String,
+    val autoLoginUsername: String? = null,
+    val autoLoginPassword: String? = null,
+    val allowAutoLogin: Boolean = false
+)
+
 @OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class)
 @Suppress("RememberReturnType")
 @Composable
 fun LoginScreen(
     navigator: ComponentNavigator,
-    draggableArea: @Composable (content: @Composable () -> Unit) -> Unit = { it() }
+    draggableArea: @Composable (content: @Composable () -> Unit) -> Unit = { it() },
+    onOpenFnConnectWindow: ((FnConnectWindowRequest) -> Unit)? = null
 ) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -490,12 +499,27 @@ fun LoginScreen(
                                     showHistorySidebar = false
                                     AccountDataCache.isFnConnect = true
                                     AccountDataCache.fnId = fnId
-//                                        onSwitchToFnConnect(url, fnId)
-                                    showFnConnectWebView = true
-                                    fnConnectUrl = url
-                                    isAutoLogin = false
-                                    fnAutoUsername = ""
-                                    fnAutoPassword = ""
+                                    val openWindow = onOpenFnConnectWindow
+                                    if (openWindow != null) {
+                                        openWindow(
+                                            FnConnectWindowRequest(
+                                                initialUrl = url,
+                                                fnId = fnId,
+                                                autoLoginUsername = null,
+                                                autoLoginPassword = null,
+                                                allowAutoLogin = false
+                                            )
+                                        )
+                                        isAutoLogin = false
+                                        fnAutoUsername = ""
+                                        fnAutoPassword = ""
+                                    } else {
+                                        showFnConnectWebView = true
+                                        fnConnectUrl = url
+                                        isAutoLogin = false
+                                        fnAutoUsername = ""
+                                        fnAutoPassword = ""
+                                    }
                                 } else {
                                     toastManager.showToast("请输入 FN ID", ToastType.Info)
                                 }
@@ -557,7 +581,20 @@ fun LoginScreen(
                                 loginHistoryList = upsertLoginHistory(loginHistoryList, history.copy(password = null))
                                 preferencesManager.saveLoginHistory(loginHistoryList)
                             }
-                            showFnConnectWebView = true
+                            val openWindow = onOpenFnConnectWindow
+                            if (openWindow != null) {
+                                openWindow(
+                                    FnConnectWindowRequest(
+                                        initialUrl = fnConnectUrl,
+                                        fnId = fnId,
+                                        autoLoginUsername = fnAutoUsername,
+                                        autoLoginPassword = fnAutoPassword,
+                                        allowAutoLogin = isAutoLogin
+                                    )
+                                )
+                            } else {
+                                showFnConnectWebView = true
+                            }
                         } else {
                             isFnConnect = false
                             host = history.host
@@ -599,7 +636,7 @@ private fun getTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = Colors.TextSecondaryColor
 )
 
-private fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
+internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
     fun normalize(value: String): String = value.trim().lowercase()
 
     fun isSameIdentity(a: LoginHistory, b: LoginHistory): Boolean {

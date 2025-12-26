@@ -211,9 +211,10 @@ fun FnConnectWebViewScreen(
                                                 
                                                 val normalizedUsername = capturedUsername.trim()
                                                     .ifBlank { autoLoginUsername?.trim().orEmpty() }
-                                                    .ifBlank { "Unknown" }
+                                                if (normalizedUsername.isNotBlank()) {
+                                                    PreferencesManager.getInstance().addLoginUsernameHistory(normalizedUsername)
+                                                }
                                                 val shouldRemember = capturedRememberMe && capturedPassword.isNotBlank()
-                                                PreferencesManager.getInstance().addLoginUsernameHistory(normalizedUsername)
                                                 logger.i("Remember me: $capturedRememberMe")
                                                 val history = LoginHistory(
                                                     host = "",

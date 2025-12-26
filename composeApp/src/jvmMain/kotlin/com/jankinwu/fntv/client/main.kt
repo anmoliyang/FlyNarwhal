@@ -7,7 +7,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.Painter
@@ -34,9 +36,12 @@ import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
+import com.jankinwu.fntv.client.ui.screen.FnConnectWebViewScreen
+import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
+import com.jankinwu.fntv.client.ui.screen.upsertLoginHistory
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
@@ -102,6 +107,7 @@ fun main() {
     KoinApplication(application = {
         modules(viewModelModule, apiModule)
     }) {
+        var fnConnectWindowRequest by remember { mutableStateOf<FnConnectWindowRequest?>(null) }
         Window(
             onCloseRequest = ::exitApplication,
             state = state,
@@ -209,7 +215,10 @@ fun main() {
                     if (!isLoggedIn) {
                         LoginScreen(
                             navigator = navigator,
-                            draggableArea = { content -> WindowDraggableArea(content = content) }
+                            draggableArea = { content -> WindowDraggableArea(content = content) },
+                            onOpenFnConnectWindow = { request ->
+                                fnConnectWindowRequest = request
+                            }
                         )
                     } else {
                         App(
@@ -228,6 +237,60 @@ fun main() {
                             isEpisode = playerManager.playerState.isEpisode,
                             onBack = { playerManager.hidePlayer() },
                             mediaPlayer = player,
+                            draggableArea = { content -> WindowDraggableArea(content = content) }
+                        )
+                    }
+                }
+            }
+        }
+
+        val request = fnConnectWindowRequest
+        if (request != null) {
+            val fnConnectWindowState = rememberWindowState(
+                size = DpSize(980.dp, 720.dp),
+                position = WindowPosition.Aligned(Alignment.Center)
+            )
+
+            Window(
+                onCloseRequest = { fnConnectWindowRequest = null },
+                state = fnConnectWindowState,
+                title = "FN Connect 登录",
+                icon = icon
+            ) {
+                val desktopContext = remember(fnConnectWindowState) {
+                    val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(fnConnectWindowState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                CompositionLocalProvider(
+                    LocalContext provides desktopContext,
+                    LocalPlayerManager provides remember { PlayerManager() },
+                    LocalFrameWindowScope provides this@Window,
+                    LocalWindowState provides fnConnectWindowState,
+                    LocalWindowHandle provides window.windowHandle,
+                    LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                    LocalWebViewRestartRequired provides webViewRestartRequired,
+                    LocalWebViewInitError provides webViewInitError
+                ) {
+                    AppTheme(
+                        displayMicaLayer = true,
+                        state = fnConnectWindowState
+                    ) {
+                        FnConnectWebViewScreen(
+                            initialUrl = request.initialUrl,
+                            fnId = request.fnId,
+                            onBack = { fnConnectWindowRequest = null },
+                            onLoginSuccess = { history ->
+                                val preferencesManager = PreferencesManager.getInstance()
+                                val current = preferencesManager.loadLoginHistory()
+                                val updated = upsertLoginHistory(current, history)
+                                preferencesManager.saveLoginHistory(updated)
+                                fnConnectWindowRequest = null
+                            },
+                            autoLoginUsername = request.autoLoginUsername,
+                            autoLoginPassword = request.autoLoginPassword,
+                            allowAutoLogin = request.allowAutoLogin,
                             draggableArea = { content -> WindowDraggableArea(content = content) }
                         )
                     }
