@@ -61,9 +61,10 @@ class PreferencesManager private constructor() {
             AccountDataCache.parseCookie(cookie)
             AccountDataCache.refreshCookie()
         }
-        AccountDataCache.rememberMe = settings.getBoolean("rememberMe", false)
+        AccountDataCache.rememberPassword = settings.getBoolean("rememberPassword", false)
         AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
         AccountDataCache.fnId = settings.getString("fnId", "")
+        AccountDataCache.displayHost = settings.getString("displayHost", "")
     }
 
     fun saveAllLoginInfo() {
@@ -76,9 +77,10 @@ class PreferencesManager private constructor() {
         settings.putBoolean("isLoggedIn", AccountDataCache.isLoggedIn)
         val cookie = AccountDataCache.cookieState
         settings.putString("cookie", cookie)
-        settings.putBoolean("rememberMe", AccountDataCache.rememberMe)
+        settings.putBoolean("rememberPassword", AccountDataCache.rememberPassword)
         settings.putBoolean("isNasLogin", AccountDataCache.isNasLogin)
         settings.putString("fnId", AccountDataCache.fnId)
+        settings.putString("displayHost", AccountDataCache.displayHost)
     }
 
     fun saveToken(token: String) {
@@ -88,15 +90,17 @@ class PreferencesManager private constructor() {
     }
 
     fun clearLoginInfo() {
-        settings.remove("username")
+//        settings.remove("username")
         settings.remove("password")
-        settings.remove("token")
-        settings.remove("isHttps")
-        settings.remove("host")
-        settings.remove("port")
-        settings.remove("cookie")
-        settings.remove("isLoggedIn")
-        settings.remove("rememberMe")
+//        settings.remove("token")
+//        settings.remove("isHttps")
+//        settings.remove("host")
+//        settings.remove("port")
+//        settings.remove("cookie")
+//        settings.remove("isLoggedIn")
+//        settings.remove("rememberMe")
+//        settings.remove("isNasLogin")
+//        settings.remove("displayHost")
     }
 
     fun hasSavedCredentials(): Boolean {

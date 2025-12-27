@@ -215,7 +215,6 @@ fun main() {
                     if (!isLoggedIn) {
                         LoginScreen(
                             navigator = navigator,
-                            draggableArea = { content -> WindowDraggableArea(content = content) },
                             onOpenFnConnectWindow = { request ->
                                 fnConnectWindowRequest = request
                             }
@@ -291,7 +290,6 @@ fun main() {
                             autoLoginUsername = request.autoLoginUsername,
                             autoLoginPassword = request.autoLoginPassword,
                             allowAutoLogin = request.allowAutoLogin,
-                            draggableArea = { content -> WindowDraggableArea(content = content) }
                         )
                     }
                 }

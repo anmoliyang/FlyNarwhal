@@ -36,7 +36,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -86,6 +85,7 @@ import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.ForgotPasswordDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.login.getTextFieldColors
 import com.jankinwu.fntv.client.ui.customSelectedCheckBoxColors
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
@@ -130,7 +130,6 @@ data class FnConnectWindowRequest(
 @Composable
 fun LoginScreen(
     navigator: ComponentNavigator,
-    draggableArea: @Composable (content: @Composable () -> Unit) -> Unit = { it() },
     onOpenFnConnectWindow: ((FnConnectWindowRequest) -> Unit)? = null
 ) {
     var username by remember { mutableStateOf("") }
@@ -143,7 +142,7 @@ fun LoginScreen(
     var fnConnectUrl by remember { mutableStateOf("") }
     var fnId by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(false) }
+    var rememberPassword by remember { mutableStateOf(false) }
     val loginViewModel: LoginViewModel = koinViewModel()
     val loginUiState by loginViewModel.uiState.collectAsState()
     val toastManager = rememberToastManager()
@@ -165,7 +164,7 @@ fun LoginScreen(
         username = AccountDataCache.userName
         password = AccountDataCache.password
         isHttps = AccountDataCache.isHttps
-        rememberMe = AccountDataCache.rememberMe
+        rememberPassword = AccountDataCache.rememberPassword
         isNasLogin = AccountDataCache.isNasLogin
         fnId = AccountDataCache.fnId
         // 加载历史记录
@@ -206,9 +205,9 @@ fun LoginScreen(
                     host = host,
                     port = port,
                     username = username,
-                    password = if (rememberMe) password else null,
+                    password = if (rememberPassword) password else null,
                     isHttps = isHttps,
-                    rememberMe = rememberMe
+                    rememberPassword = rememberPassword
                 )
 
                 // 更新历史记录列表
@@ -258,7 +257,6 @@ fun LoginScreen(
             autoLoginUsername = fnAutoUsername,
             autoLoginPassword = fnAutoPassword,
             allowAutoLogin = isAutoLogin,
-            draggableArea = draggableArea
         )
     } else {
         Box(
@@ -420,7 +418,7 @@ fun LoginScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
-                                autoCorrect = false,
+                                autoCorrectEnabled  = false,
                                 imeAction = ImeAction.Done
                             ),
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -458,10 +456,11 @@ fun LoginScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 CheckBox(
-                                    rememberMe,
+                                    rememberPassword,
                                     "记住密码",
-                                    onCheckStateChange = { rememberMe = it },
-                                    colors = if (rememberMe) {
+                                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                                    onCheckStateChange = { rememberPassword = it },
+                                    colors = if (rememberPassword) {
                                         customSelectedCheckBoxColors()
                                     } else {
                                         CheckBoxDefaults.defaultCheckBoxColors()
@@ -552,7 +551,7 @@ fun LoginScreen(
                                     isHttps = isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberMe = rememberMe
+                                    rememberPassword = rememberPassword
                                 )
                             }
                         },
@@ -592,11 +591,11 @@ fun LoginScreen(
                             fnId = history.fnId
                             fnConnectUrl = normalizeFnConnectUrl(history.fnId, history.isHttps)
                             fnAutoUsername = history.username
-                            val canUseSavedPassword = history.rememberMe && !history.password.isNullOrEmpty()
+                            val canUseSavedPassword = history.rememberPassword && !history.password.isNullOrEmpty()
                             fnAutoPassword = if (canUseSavedPassword) history.password.orEmpty() else ""
                             isAutoLogin = canUseSavedPassword
 
-                            if (!history.rememberMe && history.password != null) {
+                            if (!history.rememberPassword && history.password != null) {
                                 val preferencesManager = PreferencesManager.getInstance()
                                 loginHistoryList = upsertLoginHistory(loginHistoryList, history.copy(password = null))
                                 preferencesManager.saveLoginHistory(loginHistoryList)
@@ -621,10 +620,10 @@ fun LoginScreen(
                             port = history.port
                             username = history.username
                             isHttps = history.isHttps
-                            password = if (history.rememberMe) history.password.orEmpty() else ""
-                            rememberMe = history.rememberMe
+                            password = if (history.rememberPassword) history.password.orEmpty() else ""
+                            rememberPassword = history.rememberPassword
                             // 如果有密码，则直接登录
-                            if (history.rememberMe && !history.password.isNullOrEmpty()) {
+                            if (history.rememberPassword && !history.password.isNullOrEmpty()) {
                                 handleLogin(
                                     host = history.host,
                                     port = history.port,
@@ -633,7 +632,7 @@ fun LoginScreen(
                                     isHttps = history.isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberMe = true
+                                    rememberPassword = true
                                 )
                             }
                         }
@@ -645,16 +644,16 @@ fun LoginScreen(
     }
 }
 
-@Composable
-private fun getTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedBorderColor = PrimaryBlue,
-    unfocusedBorderColor = Color.Gray,
-    focusedLabelColor = PrimaryBlue,
-    unfocusedLabelColor = HintColor,
-    cursorColor = PrimaryBlue,
-    focusedTextColor = Colors.TextSecondaryColor,
-    unfocusedTextColor = Colors.TextSecondaryColor
-)
+//@Composable
+//private fun getTextFieldColors() = OutlinedTextFieldDefaults.colors(
+//    focusedBorderColor = PrimaryBlue,
+//    unfocusedBorderColor = Color.Gray,
+//    focusedLabelColor = PrimaryBlue,
+//    unfocusedLabelColor = HintColor,
+//    cursorColor = PrimaryBlue,
+//    focusedTextColor = Colors.TextSecondaryColor,
+//    unfocusedTextColor = Colors.TextSecondaryColor
+//)
 
 internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
     fun normalize(value: String): String = value.trim().lowercase()

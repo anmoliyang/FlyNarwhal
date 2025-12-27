@@ -319,7 +319,7 @@ class FnOfficialApiImpl() : FnOfficialApi {
             }
 
             val authx = genAuthx(url, data = body)
-            logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body" }
+            logger.i { "POST request, url: ${AccountDataCache.getFnOfficialBaseUrl()}$url, authx: $authx, body: $body, cookie: ${AccountDataCache.cookieState}" }
             val response = fnOfficialClient.post("${AccountDataCache.getFnOfficialBaseUrl()}$url") {
                 header(HttpHeaders.ContentType, "application/json; charset=utf-8")
                 header("Authx", authx)

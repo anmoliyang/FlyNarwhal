@@ -23,9 +23,9 @@ data class LoginHistory(
     @param:JsonProperty("isHttps")
     val isHttps: Boolean,
 
-    @get:JsonProperty("rememberMe")
-    @param:JsonProperty("rememberMe")
-    val rememberMe: Boolean,
+    @get:JsonProperty("rememberPassword")
+    @param:JsonProperty("rememberPassword")
+    val rememberPassword: Boolean,
 
     @get:JsonProperty("isNasLogin")
     @param:JsonProperty("isNasLogin")

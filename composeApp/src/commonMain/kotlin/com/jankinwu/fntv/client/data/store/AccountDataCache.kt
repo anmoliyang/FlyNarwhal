@@ -26,7 +26,7 @@ object AccountDataCache {
 
     var isLoggedIn: Boolean = false
 
-    var rememberMe: Boolean = false
+    var rememberPassword: Boolean = false
 
     var isNasLogin: Boolean = false
 
