@@ -3,7 +3,10 @@ package com.jankinwu.fntv.client.ui.screen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -126,7 +129,9 @@ data class FnConnectWindowRequest(
     val onBaseUrlDetected: ((String) -> Unit)? = null
 )
 
-@OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class,
+    ExperimentalFoundationApi::class
+)
 @Suppress("RememberReturnType")
 @Composable
 fun LoginScreen(
@@ -401,16 +406,43 @@ fun LoginScreen(
                                 modifier = Modifier
                                     .padding(horizontal = 4.dp, vertical = 12.dp)
                             )
-                            NumberInput(
-                                onValueChange = { port = it },
-                                value = port,
+                            TooltipArea(
                                 modifier = Modifier.weight(1.0f),
-                                placeholder = "端口",
-                                minValue = 0,
-                                label = "",
-                                textColor = Colors.TextSecondaryColor,
-                                defaultValue = 5666
-                            )
+                                tooltip = {
+                                    Surface(
+                                        modifier = Modifier.padding(4.dp),
+                                        color = FluentTheme.colors.background.smoke.default.copy(
+                                            alpha = 0.8f
+                                        ),
+                                        shape = RoundedCornerShape(4.dp),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            FluentTheme.colors.text.text.primary
+                                        ),
+                                    ) {
+                                        Text(
+                                            text = "端口，填 0 代表使用 HTTP 或 HTTPS 协议的默认端口",
+                                            modifier = Modifier
+                                                .padding(8.dp),
+//                                                .width(200.dp),
+                                            color = FluentTheme.colors.text.text.primary,
+                                            style = FluentTheme.typography.caption
+                                        )
+                                    }
+                                },
+                                delayMillis = 800,
+                            ) {
+                                NumberInput(
+                                    onValueChange = { port = it },
+                                    value = port,
+                                    modifier = Modifier,
+                                    placeholder = "端口",
+                                    minValue = 0,
+                                    label = "",
+                                    textColor = Colors.TextSecondaryColor,
+                                    defaultValue = 5666
+                                )
+                            }
                         }
 
                         OutlinedTextField(
@@ -680,13 +712,11 @@ fun LoginScreen(
                             password =
                                 if (history.rememberPassword) history.password.orEmpty() else ""
                             rememberPassword = history.rememberPassword
-                            val displayHost = history.displayHost
-                            val displayPort = history.displayPort
                             // 如果有密码，则直接登录
                             if (history.rememberPassword && !history.password.isNullOrEmpty()) {
                                 handleLogin(
-                                    host = history.displayHost,
-                                    port = history.displayPort,
+                                    host = history.displayHost.ifBlank { history.host },
+                                    port = history.displayPort ?: history.port,
                                     username = history.username,
                                     password = history.password,
                                     isHttps = history.isHttps,
@@ -746,17 +776,23 @@ fun LoginScreen(
 //    unfocusedTextColor = Colors.TextSecondaryColor
 //)
 
-internal fun updateLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
+internal fun updateLoginHistory(
+    current: List<LoginHistory>,
+    incoming: LoginHistory
+): List<LoginHistory> {
     fun normalize(value: String): String = value.trim().lowercase()
 
     fun isSameIdentity(a: LoginHistory, b: LoginHistory): Boolean {
         if (a.isNasLogin != b.isNasLogin) return false
         return if (a.isNasLogin) {
             normalize(a.fnId) == normalize(b.fnId) && normalize(a.username) == normalize(b.username)
-                    && a.isHttps == b.isHttps
         } else {
+            if (a.displayHost.isBlank() || a.displayPort == null) {
+                return normalize(a.host) == normalize(b.displayHost) && a.port == b.displayPort
+                        && normalize(a.username) == normalize(b.username)
+            }
             normalize(a.displayHost) == normalize(b.displayHost) && a.displayPort == b.displayPort
-                    && normalize(a.username) == normalize(b.username) && a.isHttps == b.isHttps
+                    && normalize(a.username) == normalize(b.username)
         }
     }
 

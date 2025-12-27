@@ -49,7 +49,7 @@ data class LoginHistory(
 
     @get:JsonProperty("displayPort")
     @param:JsonProperty("displayPort")
-    val displayPort: Int = 0
+    val displayPort: Int? = null,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -77,7 +77,7 @@ data class LoginHistory(
 //            result = 31 * result + host.hashCode()
 //            result = 31 * result + port
             result = 31 * result + displayHost.hashCode()
-            result = 31 * result + displayPort
+            if (displayPort != null) result = 31 * result + displayPort
         }
         result = 31 * result + username.hashCode()
         result = 31 * result + isHttps.hashCode()
@@ -88,6 +88,8 @@ data class LoginHistory(
         if (isNasLogin) {
             return fnId.ifBlank { "FN Connect" }
         }
+        val displayHost = displayHost.ifBlank { host }
+        val displayPort = displayPort ?: port
         return if (displayPort != 0) {
             "$displayHost:$displayPort"
         } else {
