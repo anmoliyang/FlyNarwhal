@@ -254,7 +254,7 @@ fun main() {
             Window(
                 onCloseRequest = { fnConnectWindowRequest = null },
                 state = fnConnectWindowState,
-                title = "FN Connect 登录",
+                title = "使用 NAS 登录",
                 icon = icon
             ) {
                 val desktopContext = remember(fnConnectWindowState) {

@@ -62,7 +62,7 @@ class PreferencesManager private constructor() {
             AccountDataCache.refreshCookie()
         }
         AccountDataCache.rememberMe = settings.getBoolean("rememberMe", false)
-        AccountDataCache.isFnConnect = settings.getBoolean("isFnConnect", false)
+        AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
         AccountDataCache.fnId = settings.getString("fnId", "")
     }
 
@@ -77,7 +77,7 @@ class PreferencesManager private constructor() {
         val cookie = AccountDataCache.cookieState
         settings.putString("cookie", cookie)
         settings.putBoolean("rememberMe", AccountDataCache.rememberMe)
-        settings.putBoolean("isFnConnect", AccountDataCache.isFnConnect)
+        settings.putBoolean("isNasLogin", AccountDataCache.isNasLogin)
         settings.putString("fnId", AccountDataCache.fnId)
     }
 

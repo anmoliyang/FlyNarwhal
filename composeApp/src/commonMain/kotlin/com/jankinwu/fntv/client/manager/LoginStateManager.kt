@@ -5,7 +5,6 @@ import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
-import com.jankinwu.fntv.client.utils.DomainIpValidator
 import com.jankinwu.fntv.client.viewmodel.LoginViewModel
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,17 +84,30 @@ object LoginStateManager {
         } else {
             AccountDataCache.isHttps = false
         }
-        val isValidDomainOrIP = DomainIpValidator.isValidDomainOrIP(host)
-        if (!isValidDomainOrIP) {
-            toastManager.showToast("请填写正确的ip地址或域名", ToastType.Failed)
-            return
-        }
-        AccountDataCache.host = host
+//        val isValidDomainOrIP = DomainIpValidator.isValidDomainOrIP(host)
+//        if (!isValidDomainOrIP) {
+//            toastManager.showToast("请填写正确的ip地址或域名", ToastType.Failed)
+//            return
+//        }
+        AccountDataCache.displayHost = host
         if (port != 0) {
             AccountDataCache.port = port
         } else {
             AccountDataCache.port = 0
         }
+
+        // 如果使用 FN ID 或 FN 域名
+        val normalizedHost = if (host.contains('.')) host else "$host.5ddd.com"
+        if (normalizedHost.contains("5ddd.com")) {
+            AccountDataCache.isHttps = true
+            AccountDataCache.insertCookie("mode" to "relay")
+            AccountDataCache.port = 0
+        } else {
+            AccountDataCache.removeCookie("mode")
+        }
+        AccountDataCache.host = normalizedHost
+
+
         AccountDataCache.userName = username
         val preferencesManager = PreferencesManager.getInstance()
         // 如果选择了记住账号，则保存账号密码和token

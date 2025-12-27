@@ -20,13 +20,15 @@ object AccountDataCache {
 
     var host: String = ""
 
+    var displayHost: String = ""
+
     var port: Int = 0
 
     var isLoggedIn: Boolean = false
 
     var rememberMe: Boolean = false
 
-    var isFnConnect: Boolean = false
+    var isNasLogin: Boolean = false
 
     var fnId: String = ""
 
@@ -87,6 +89,11 @@ object AccountDataCache {
     fun clearCookie() {
         cookieMap.clear()
         _cookieState.value = ""
+    }
+
+    fun removeCookie(key: String) {
+        cookieMap.remove(key)
+        _cookieState.value = getCookie()
     }
 
     fun refreshCookie() {

@@ -6,30 +6,30 @@ data class LoginHistory(
     @get:JsonProperty("host")
     @param:JsonProperty("host")
     val host: String,
-    
+
     @get:JsonProperty("port")
     @param:JsonProperty("port")
     val port: Int,
-    
+
     @get:JsonProperty("username")
     @param:JsonProperty("username")
     val username: String,
-    
+
     @get:JsonProperty("password")
     @param:JsonProperty("password")
     val password: String?,
-    
+
     @get:JsonProperty("isHttps")
     @param:JsonProperty("isHttps")
     val isHttps: Boolean,
-    
+
     @get:JsonProperty("rememberMe")
     @param:JsonProperty("rememberMe")
     val rememberMe: Boolean,
 
-    @get:JsonProperty("isFnConnect")
-    @param:JsonProperty("isFnConnect")
-    val isFnConnect: Boolean = false,
+    @get:JsonProperty("isNasLogin")
+    @param:JsonProperty("isNasLogin")
+    val isNasLogin: Boolean = false,
 
     @get:JsonProperty("fnConnectUrl")
     @param:JsonProperty("fnConnectUrl")
@@ -38,7 +38,7 @@ data class LoginHistory(
     @get:JsonProperty("fnId")
     @param:JsonProperty("fnId")
     val fnId: String = "",
-    
+
     @get:JsonProperty("lastLoginTimestamp")
     @param:JsonProperty("lastLoginTimestamp")
     val lastLoginTimestamp: Long = System.currentTimeMillis()
@@ -47,9 +47,9 @@ data class LoginHistory(
         if (this === other) return true
         if (other !is LoginHistory) return false
         
-        if (isFnConnect != other.isFnConnect) return false
+        if (isNasLogin != other.isNasLogin) return false
         
-        return if (isFnConnect) {
+        return if (isNasLogin) {
             fnId == other.fnId && username == other.username
         } else {
             host == other.host && 
@@ -59,8 +59,8 @@ data class LoginHistory(
     }
     
     override fun hashCode(): Int {
-        var result = isFnConnect.hashCode()
-        if (isFnConnect) {
+        var result = isNasLogin.hashCode()
+        if (isNasLogin) {
             result = 31 * result + fnId.hashCode()
         } else {
             result = 31 * result + host.hashCode()
@@ -71,7 +71,7 @@ data class LoginHistory(
     }
     
     fun getEndpoint(): String {
-        if (isFnConnect) {
+        if (isNasLogin) {
             return fnId.ifBlank { "FN Connect" }
         }
         return if (port != 0) {

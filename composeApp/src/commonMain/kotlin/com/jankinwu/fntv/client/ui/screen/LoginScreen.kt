@@ -5,6 +5,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -51,6 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -62,6 +65,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import co.touchlab.kermit.Logger
@@ -96,6 +100,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.login_background
 import fntv_client_multiplatform.composeapp.generated.resources.login_fn_logo
+import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.CheckBox
 import io.github.composefluent.component.CheckBoxDefaults
 import io.github.composefluent.component.ScrollbarContainer
@@ -133,7 +138,7 @@ fun LoginScreen(
     var host by remember { mutableStateOf("") }
     var port by remember { mutableIntStateOf(0) }
     var isHttps by remember { mutableStateOf(false) }
-    var isFnConnect by remember { mutableStateOf(false) }
+    var isNasLogin by remember { mutableStateOf(false) }
     var showFnConnectWebView by remember { mutableStateOf(false) }
     var fnConnectUrl by remember { mutableStateOf("") }
     var fnId by remember { mutableStateOf("") }
@@ -151,19 +156,30 @@ fun LoginScreen(
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
 
+    val hostFocusRequester = remember { FocusRequester() }
+
     // 初始化时加载保存的账号信息
     remember {
-        host = AccountDataCache.host
+        host = AccountDataCache.displayHost
         port = AccountDataCache.port
         username = AccountDataCache.userName
         password = AccountDataCache.password
         isHttps = AccountDataCache.isHttps
         rememberMe = AccountDataCache.rememberMe
-        isFnConnect = AccountDataCache.isFnConnect
+        isNasLogin = AccountDataCache.isNasLogin
         fnId = AccountDataCache.fnId
         // 加载历史记录
         val preferencesManager = PreferencesManager.getInstance()
         loginHistoryList = preferencesManager.loadLoginHistory()
+    }
+
+    // 自动聚焦 host 输入框
+    LaunchedEffect(Unit) {
+        if (isNasLogin) {
+            if (fnId.isBlank()) hostFocusRequester.requestFocus()
+        } else {
+            if (host.isBlank()) hostFocusRequester.requestFocus()
+        }
     }
 
     // 处理登录结果
@@ -174,6 +190,7 @@ fun LoginScreen(
                 UserInfoMemoryCache.clear()
                 AccountDataCache.authorization = state.data.token
                 AccountDataCache.insertCookie("Trim-MC-token" to state.data.token)
+                AccountDataCache.isNasLogin = false
                 logger.i("登录成功，cookie: ${AccountDataCache.cookieState}")
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveToken(state.data.token)
@@ -283,14 +300,16 @@ fun LoginScreen(
                     )
                     Text("FN_Media", color = HintColor, fontSize = 16.sp)
                     var isHistoryHovered by remember { mutableStateOf(false) }
-                    if (isFnConnect) {
+                    if (isNasLogin) {
                         OutlinedTextField(
                             value = fnId,
                             onValueChange = { fnId = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("请输入 IP 地址、域名或 FN ID") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(hostFocusRequester),
+                            label = { Text("请输入 IP:Port、域名或 FN ID") },
                             singleLine = true,
-                            placeholder = { Text("请输入 IP 地址、域名或 FN ID") },
+                            placeholder = { Text("请输入 IP:Port、域名或 FN ID") },
                             colors = getTextFieldColors(),
                             textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
                             trailingIcon = {
@@ -326,10 +345,11 @@ fun LoginScreen(
                                 value = host,
                                 onValueChange = { host = it },
                                 modifier = Modifier
-                                    .weight(2.0f),
-                                label = { Text("ip 或域名") },
+                                    .weight(2.0f)
+                                    .focusRequester(hostFocusRequester),
+                                label = { Text("请输入IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 singleLine = true,
-                                placeholder = { Text("请输入ip或域名") },
+                                placeholder = { Text("IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                 colors = getTextFieldColors(),
                                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
                                 trailingIcon = {
@@ -366,7 +386,7 @@ fun LoginScreen(
                                 onValueChange = { port = it },
                                 value = port,
                                 modifier = Modifier.weight(1.0f),
-                                placeholder = "请输入端口",
+                                placeholder = "端口",
                                 minValue = 0,
                                 label = "",
                                 textColor = Colors.TextSecondaryColor,
@@ -459,14 +479,14 @@ fun LoginScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            "使用 NAS 或 FN Connect 登录",
+                            "使用 NAS 登录",
                             color = Colors.TextSecondaryColor,
                             fontSize = 16.sp
                         )
                         Switcher(
-                            isFnConnect,
-                            { isFnConnect = it },
-                            styles = if (isFnConnect) {
+                            isNasLogin,
+                            { isNasLogin = it },
+                            styles = if (isNasLogin) {
                                 selectedSwitcherStyle()
                             } else {
                                 SwitcherDefaults.defaultSwitcherStyle()
@@ -492,12 +512,12 @@ fun LoginScreen(
 
                     Button(
                         onClick = {
-                            if (isFnConnect) {
+                            if (isNasLogin) {
                                 val url = normalizeFnConnectUrl(fnId, isHttps)
                                 if (url.isNotBlank()) {
                                     logger.i("fn connect url: $url")
                                     showHistorySidebar = false
-                                    AccountDataCache.isFnConnect = true
+                                    AccountDataCache.isNasLogin = true
                                     AccountDataCache.fnId = fnId
                                     val openWindow = onOpenFnConnectWindow
                                     if (openWindow != null) {
@@ -543,7 +563,7 @@ fun LoginScreen(
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
                     ) {
-                        Text(if (isFnConnect) "下一步" else "登录", fontSize = 16.sp)
+                        Text(if (isNasLogin) "下一步" else "登录", fontSize = 16.sp)
                     }
                 }
             }
@@ -567,8 +587,8 @@ fun LoginScreen(
                         preferencesManager.saveLoginHistory(updatedList)
                     },
                     onSelect = { history ->
-                        if (history.isFnConnect) {
-                            isFnConnect = true
+                        if (history.isNasLogin) {
+                            isNasLogin = true
                             fnId = history.fnId
                             fnConnectUrl = normalizeFnConnectUrl(history.fnId, history.isHttps)
                             fnAutoUsername = history.username
@@ -596,7 +616,7 @@ fun LoginScreen(
                                 showFnConnectWebView = true
                             }
                         } else {
-                            isFnConnect = false
+                            isNasLogin = false
                             host = history.host
                             port = history.port
                             username = history.username
@@ -640,8 +660,8 @@ internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHist
     fun normalize(value: String): String = value.trim().lowercase()
 
     fun isSameIdentity(a: LoginHistory, b: LoginHistory): Boolean {
-        if (a.isFnConnect != b.isFnConnect) return false
-        return if (a.isFnConnect) {
+        if (a.isNasLogin != b.isNasLogin) return false
+        return if (a.isNasLogin) {
             normalize(a.fnId) == normalize(b.fnId) && normalize(a.username) == normalize(b.username)
         } else {
             normalize(a.host) == normalize(b.host) && a.port == b.port && normalize(a.username) == normalize(b.username)
@@ -762,11 +782,32 @@ private fun HistoryItem(
                     onClick = { onSelect() }
                 )
         ) {
-            Text(
-                text = history.username,
-                color = Colors.TextSecondaryColor,
-                fontSize = 16.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = history.username,
+                    color = Colors.TextSecondaryColor,
+                    fontSize = 16.sp
+                )
+                if (history.isNasLogin) {
+                    Row(
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .border(1.dp, Colors.AccentColorDefault, RoundedCornerShape(50))
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "NAS",
+                            style = FluentTheme.typography.caption,
+                            color = Colors.AccentColorDefault,
+                            modifier = Modifier
+//                                            .padding(start = 2.dp)
+                        )
+                    }
+                }
+            }
             Text(
                 text = history.getEndpoint(),
                 color = HintColor,

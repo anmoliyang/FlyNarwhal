@@ -223,7 +223,7 @@ fun FnConnectWebViewScreen(
                                                     password = if (shouldRemember) capturedPassword else null,
                                                     isHttps = baseUrl.startsWith("https"),
                                                     rememberMe = shouldRemember,
-                                                    isFnConnect = true,
+                                                    isNasLogin = true,
                                                     fnConnectUrl = baseUrl,
                                                     fnId = fnId.trim()
                                                 )
@@ -709,18 +709,18 @@ fun FnConnectWebViewScreen(
                     )
             ) {
                 // Window Draggable Area
-                draggableArea {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .align(Alignment.TopCenter)
-                    )
-                }
+//                draggableArea {
+//                    Box(
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .height(48.dp)
+//                            .align(Alignment.TopCenter)
+//                    )
+//                }
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 48.dp, end = 12.dp)
+                        .padding(top = 12.dp, end = 12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
