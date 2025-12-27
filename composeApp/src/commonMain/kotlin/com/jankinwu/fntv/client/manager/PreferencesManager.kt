@@ -54,7 +54,7 @@ class PreferencesManager private constructor() {
         AccountDataCache.authorization = settings.getString("token", "")
         AccountDataCache.isHttps = settings.getBoolean("isHttps", false)
         AccountDataCache.host = settings.getString("host", "")
-        AccountDataCache.port = settings.getInt("port", 0)
+        AccountDataCache.port = settings.getInt("port", 5666)
         AccountDataCache.isLoggedIn = settings.getBoolean("isLoggedIn", false)
         val cookie = settings.getString("cookie", "")
         if (cookie.isNotBlank()) {
@@ -65,6 +65,7 @@ class PreferencesManager private constructor() {
         AccountDataCache.isNasLogin = settings.getBoolean("isNasLogin", false)
         AccountDataCache.fnId = settings.getString("fnId", "")
         AccountDataCache.displayHost = settings.getString("displayHost", "")
+        AccountDataCache.displayPort = settings.getInt("displayPort", 5666)
     }
 
     fun saveAllLoginInfo() {
@@ -81,6 +82,7 @@ class PreferencesManager private constructor() {
         settings.putBoolean("isNasLogin", AccountDataCache.isNasLogin)
         settings.putString("fnId", AccountDataCache.fnId)
         settings.putString("displayHost", AccountDataCache.displayHost)
+        settings.putInt("displayPort", AccountDataCache.displayPort)
     }
 
     fun saveToken(token: String) {
@@ -120,7 +122,7 @@ class PreferencesManager private constructor() {
         return try {
             mapper.readValue<List<LoginHistory>>(historyJson)
 //            json.decodeFromString<List<LoginHistory>>(historyJson)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
@@ -129,7 +131,7 @@ class PreferencesManager private constructor() {
         val usernamesJson = settings.getString("loginUsernameHistory", "[]")
         return try {
             mapper.readValue<List<String>>(usernamesJson)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }

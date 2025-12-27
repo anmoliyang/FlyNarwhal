@@ -3,7 +3,10 @@ package com.jankinwu.fntv.client.ui.screen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -122,10 +125,13 @@ data class FnConnectWindowRequest(
     val fnId: String,
     val autoLoginUsername: String? = null,
     val autoLoginPassword: String? = null,
-    val allowAutoLogin: Boolean = false
+    val allowAutoLogin: Boolean = false,
+    val onBaseUrlDetected: ((String) -> Unit)? = null
 )
 
-@OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalHazeMaterialsApi::class, ExperimentalComposeUiApi::class,
+    ExperimentalFoundationApi::class
+)
 @Suppress("RememberReturnType")
 @Composable
 fun LoginScreen(
@@ -152,6 +158,7 @@ fun LoginScreen(
     var isAutoLogin by remember { mutableStateOf(false) }
     var fnAutoUsername by remember { mutableStateOf("") }
     var fnAutoPassword by remember { mutableStateOf("") }
+    var isProbeMode by remember { mutableStateOf(false) }
     // 登录历史记录列表
     var loginHistoryList by remember { mutableStateOf<List<LoginHistory>>(emptyList()) }
 
@@ -160,7 +167,7 @@ fun LoginScreen(
     // 初始化时加载保存的账号信息
     remember {
         host = AccountDataCache.displayHost
-        port = AccountDataCache.port
+        port = AccountDataCache.displayPort
         username = AccountDataCache.userName
         password = AccountDataCache.password
         isHttps = AccountDataCache.isHttps
@@ -202,16 +209,18 @@ fun LoginScreen(
 
                 // 保存登录历史记录
                 val loginHistory = LoginHistory(
-                    host = host,
-                    port = port,
+                    host = AccountDataCache.host,
+                    port = AccountDataCache.port,
                     username = username,
                     password = if (rememberPassword) password else null,
-                    isHttps = isHttps,
-                    rememberPassword = rememberPassword
+                    isHttps = AccountDataCache.isHttps,
+                    rememberPassword = AccountDataCache.rememberPassword,
+                    displayHost = AccountDataCache.displayHost,
+                    displayPort = AccountDataCache.displayPort
                 )
 
                 // 更新历史记录列表
-                loginHistoryList = upsertLoginHistory(loginHistoryList, loginHistory)
+                loginHistoryList = updateLoginHistory(loginHistoryList, loginHistory)
                 // 保存到偏好设置
                 preferencesManager.saveLoginHistory(loginHistoryList)
             }
@@ -242,21 +251,26 @@ fun LoginScreen(
     }
 
     if (showFnConnectWebView) {
-        FnConnectWebViewScreen(
+        NasLoginWebViewScreen(
             initialUrl = fnConnectUrl,
             fnId = fnId,
-            onBack = { showFnConnectWebView = false },
+            onBack = {
+                showFnConnectWebView = false
+                isProbeMode = false
+            },
             onLoginSuccess = { history ->
                 // 更新历史记录列表
-                loginHistoryList = upsertLoginHistory(loginHistoryList, history)
+                loginHistoryList = updateLoginHistory(loginHistoryList, history)
                 // 保存到偏好设置
                 val preferencesManager = PreferencesManager.getInstance()
                 preferencesManager.saveLoginHistory(loginHistoryList)
                 showFnConnectWebView = false
+                isProbeMode = false
             },
             autoLoginUsername = fnAutoUsername,
             autoLoginPassword = fnAutoPassword,
             allowAutoLogin = isAutoLogin,
+            onBaseUrlDetected = null
         )
     } else {
         Box(
@@ -345,9 +359,21 @@ fun LoginScreen(
                                 modifier = Modifier
                                     .weight(2.0f)
                                     .focusRequester(hostFocusRequester),
-                                label = { Text("请输入IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                label = {
+                                    Text(
+                                        "请输入IP、域名或 FN ID",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 singleLine = true,
-                                placeholder = { Text("IP、域名或 FN ID", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                placeholder = {
+                                    Text(
+                                        "IP、域名或 FN ID",
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 colors = getTextFieldColors(),
                                 textStyle = LocalTextStyle.current.copy(fontSize = 18.sp),
                                 trailingIcon = {
@@ -380,16 +406,43 @@ fun LoginScreen(
                                 modifier = Modifier
                                     .padding(horizontal = 4.dp, vertical = 12.dp)
                             )
-                            NumberInput(
-                                onValueChange = { port = it },
-                                value = port,
+                            TooltipArea(
                                 modifier = Modifier.weight(1.0f),
-                                placeholder = "端口",
-                                minValue = 0,
-                                label = "",
-                                textColor = Colors.TextSecondaryColor,
-                                defaultValue = 5666
-                            )
+                                tooltip = {
+                                    Surface(
+                                        modifier = Modifier.padding(4.dp),
+                                        color = FluentTheme.colors.background.smoke.default.copy(
+                                            alpha = 0.8f
+                                        ),
+                                        shape = RoundedCornerShape(4.dp),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            FluentTheme.colors.text.text.primary
+                                        ),
+                                    ) {
+                                        Text(
+                                            text = "端口，填 0 代表使用 HTTP 或 HTTPS 协议的默认端口",
+                                            modifier = Modifier
+                                                .padding(8.dp),
+//                                                .width(200.dp),
+                                            color = FluentTheme.colors.text.text.primary,
+                                            style = FluentTheme.typography.caption
+                                        )
+                                    }
+                                },
+                                delayMillis = 800,
+                            ) {
+                                NumberInput(
+                                    onValueChange = { port = it },
+                                    value = port,
+                                    modifier = Modifier,
+                                    placeholder = "端口",
+                                    minValue = 0,
+                                    label = "",
+                                    textColor = Colors.TextSecondaryColor,
+                                    defaultValue = 5666
+                                )
+                            }
                         }
 
                         OutlinedTextField(
@@ -418,7 +471,7 @@ fun LoginScreen(
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = if (passwordVisible) KeyboardType.Ascii else KeyboardType.Password,
-                                autoCorrectEnabled  = false,
+                                autoCorrectEnabled = false,
                                 imeAction = ImeAction.Done
                             ),
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -551,7 +604,38 @@ fun LoginScreen(
                                     isHttps = isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberPassword = rememberPassword
+                                    rememberPassword = rememberPassword,
+                                    onProbeRequired = { url ->
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
+                                                )
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
+                                        }
+                                    }
                                 )
                             }
                         },
@@ -591,13 +675,18 @@ fun LoginScreen(
                             fnId = history.fnId
                             fnConnectUrl = normalizeFnConnectUrl(history.fnId, history.isHttps)
                             fnAutoUsername = history.username
-                            val canUseSavedPassword = history.rememberPassword && !history.password.isNullOrEmpty()
-                            fnAutoPassword = if (canUseSavedPassword) history.password.orEmpty() else ""
+                            val canUseSavedPassword =
+                                history.rememberPassword && !history.password.isNullOrEmpty()
+                            fnAutoPassword =
+                                if (canUseSavedPassword) history.password.orEmpty() else ""
                             isAutoLogin = canUseSavedPassword
 
                             if (!history.rememberPassword && history.password != null) {
                                 val preferencesManager = PreferencesManager.getInstance()
-                                loginHistoryList = upsertLoginHistory(loginHistoryList, history.copy(password = null))
+                                loginHistoryList = updateLoginHistory(
+                                    loginHistoryList,
+                                    history.copy(password = null)
+                                )
                                 preferencesManager.saveLoginHistory(loginHistoryList)
                             }
                             val openWindow = onOpenFnConnectWindow
@@ -620,19 +709,51 @@ fun LoginScreen(
                             port = history.port
                             username = history.username
                             isHttps = history.isHttps
-                            password = if (history.rememberPassword) history.password.orEmpty() else ""
+                            password =
+                                if (history.rememberPassword) history.password.orEmpty() else ""
                             rememberPassword = history.rememberPassword
                             // 如果有密码，则直接登录
                             if (history.rememberPassword && !history.password.isNullOrEmpty()) {
                                 handleLogin(
-                                    host = history.host,
-                                    port = history.port,
+                                    host = history.displayHost.ifBlank { history.host },
+                                    port = history.displayPort ?: history.port,
                                     username = history.username,
                                     password = history.password,
                                     isHttps = history.isHttps,
                                     toastManager = toastManager,
                                     loginViewModel = loginViewModel,
-                                    rememberPassword = true
+                                    rememberPassword = true,
+                                    onProbeRequired = { url ->
+                                        val openWindow = onOpenFnConnectWindow
+                                        if (openWindow != null) {
+                                            openWindow(
+                                                FnConnectWindowRequest(
+                                                    initialUrl = url,
+                                                    fnId = "",
+                                                    autoLoginUsername = null,
+                                                    autoLoginPassword = null,
+                                                    allowAutoLogin = false,
+                                                    onBaseUrlDetected = {
+                                                        handleLogin(
+                                                            host = host,
+                                                            port = port,
+                                                            username = username,
+                                                            password = password,
+                                                            isHttps = isHttps,
+                                                            toastManager = toastManager,
+                                                            loginViewModel = loginViewModel,
+                                                            rememberPassword = rememberPassword,
+                                                            isProbeFinished = true
+                                                        )
+                                                    }
+                                                )
+                                            )
+                                        } else {
+                                            showFnConnectWebView = true
+                                            fnConnectUrl = url
+                                            isProbeMode = true
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -655,7 +776,10 @@ fun LoginScreen(
 //    unfocusedTextColor = Colors.TextSecondaryColor
 //)
 
-internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHistory): List<LoginHistory> {
+internal fun updateLoginHistory(
+    current: List<LoginHistory>,
+    incoming: LoginHistory
+): List<LoginHistory> {
     fun normalize(value: String): String = value.trim().lowercase()
 
     fun isSameIdentity(a: LoginHistory, b: LoginHistory): Boolean {
@@ -663,7 +787,12 @@ internal fun upsertLoginHistory(current: List<LoginHistory>, incoming: LoginHist
         return if (a.isNasLogin) {
             normalize(a.fnId) == normalize(b.fnId) && normalize(a.username) == normalize(b.username)
         } else {
-            normalize(a.host) == normalize(b.host) && a.port == b.port && normalize(a.username) == normalize(b.username)
+            if (a.displayHost.isBlank() || a.displayPort == null) {
+                return normalize(a.host) == normalize(b.displayHost) && a.port == b.displayPort
+                        && normalize(a.username) == normalize(b.username)
+            }
+            normalize(a.displayHost) == normalize(b.displayHost) && a.displayPort == b.displayPort
+                    && normalize(a.username) == normalize(b.username)
         }
     }
 

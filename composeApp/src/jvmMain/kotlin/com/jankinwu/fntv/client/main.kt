@@ -36,12 +36,12 @@ import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
-import com.jankinwu.fntv.client.ui.screen.FnConnectWebViewScreen
+import com.jankinwu.fntv.client.ui.screen.NasLoginWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
-import com.jankinwu.fntv.client.ui.screen.upsertLoginHistory
+import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
@@ -159,7 +159,7 @@ fun main() {
                 LocalFrameWindowScope provides this@Window,
                 LocalWindowState provides state,
                 LocalWindowHandle provides window.windowHandle,
-                LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
                 LocalWebViewRestartRequired provides webViewRestartRequired,
                 LocalWebViewInitError provides webViewInitError
             ) {
@@ -268,7 +268,7 @@ fun main() {
                     LocalFrameWindowScope provides this@Window,
                     LocalWindowState provides fnConnectWindowState,
                     LocalWindowHandle provides window.windowHandle,
-                    LocalWebViewInitialized provides (webViewInitialized && !webViewRestartRequired && webViewInitError == null),
+                    LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
                     LocalWebViewRestartRequired provides webViewRestartRequired,
                     LocalWebViewInitError provides webViewInitError
                 ) {
@@ -276,20 +276,26 @@ fun main() {
                         displayMicaLayer = true,
                         state = fnConnectWindowState
                     ) {
-                        FnConnectWebViewScreen(
+                        NasLoginWebViewScreen(
                             initialUrl = request.initialUrl,
                             fnId = request.fnId,
                             onBack = { fnConnectWindowRequest = null },
                             onLoginSuccess = { history ->
                                 val preferencesManager = PreferencesManager.getInstance()
                                 val current = preferencesManager.loadLoginHistory()
-                                val updated = upsertLoginHistory(current, history)
+                                val updated = updateLoginHistory(current, history)
                                 preferencesManager.saveLoginHistory(updated)
                                 fnConnectWindowRequest = null
                             },
                             autoLoginUsername = request.autoLoginUsername,
                             autoLoginPassword = request.autoLoginPassword,
                             allowAutoLogin = request.allowAutoLogin,
+                            onBaseUrlDetected = if (request.onBaseUrlDetected != null) {
+                                {
+                                    request.onBaseUrlDetected.invoke(it)
+                                    fnConnectWindowRequest = null
+                                }
+                            } else null
                         )
                     }
                 }
