@@ -2,6 +2,7 @@
 
 package com.jankinwu.fntv.client.ui.screen
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,24 +27,23 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -75,6 +76,7 @@ import com.jankinwu.fntv.client.currentPlatform
 import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
+import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.data.model.request.MediaPRequest
 import com.jankinwu.fntv.client.data.model.request.PlayPlayRequest
 import com.jankinwu.fntv.client.data.model.request.PlayRecordRequest
@@ -101,6 +103,7 @@ import com.jankinwu.fntv.client.icons.Back10S
 import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.Pause
 import com.jankinwu.fntv.client.icons.Play
+import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
@@ -115,12 +118,11 @@ import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
 import com.jankinwu.fntv.client.ui.component.player.PlayerSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.QualityControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SpeedControlFlyout
-import com.jankinwu.fntv.client.ui.component.player.speeds
 import com.jankinwu.fntv.client.ui.component.player.SubtitleControlFlyout
 import com.jankinwu.fntv.client.ui.component.player.SubtitleOverlay
-import com.jankinwu.fntv.client.data.model.SubtitleSettings
 import com.jankinwu.fntv.client.ui.component.player.VideoPlayerProgressBar
 import com.jankinwu.fntv.client.ui.component.player.VolumeControl
+import com.jankinwu.fntv.client.ui.component.player.speeds
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import com.jankinwu.fntv.client.ui.providable.LocalFileInfo
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
@@ -135,7 +137,9 @@ import com.jankinwu.fntv.client.utils.HiddenPointerIcon
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.SubtitleCue
+import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
 import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
@@ -149,6 +153,9 @@ import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
+import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
+import io.github.alexzhirkevich.compottie.rememberLottieComposition
+import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.DialogSize
@@ -175,7 +182,6 @@ import org.openani.mediamp.features.VideoAspectRatio
 import org.openani.mediamp.source.MediaExtraFiles
 import org.openani.mediamp.source.UriMediaData
 import org.openani.mediamp.togglePause
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val logger = Logger.withTag("PlayerScreen")
@@ -194,6 +200,7 @@ data class PlayerState(
 class PlayerManager {
     var playerState: PlayerState by mutableStateOf(PlayerState())
     var keyFocusRequestSerial: Int by mutableIntStateOf(0)
+    var isPipMode: Boolean by mutableStateOf(false)
 
     fun requestKeyFocus() {
         keyFocusRequestSerial++
@@ -289,37 +296,6 @@ private fun callPlayRecord(
     }
 }
 
-@Composable
-fun rememberSmoothVideoTime(mediaPlayer: MediampPlayer): State<Long> {
-    val targetTime by mediaPlayer.currentPositionMillis.collectAsState()
-    val isPlaying by mediaPlayer.playbackState.collectAsState()
-    val smoothTime = remember { mutableLongStateOf(targetTime) }
-
-    // Sync when paused or seeking (large diff)
-    LaunchedEffect(targetTime, isPlaying) {
-        if (isPlaying != PlaybackState.PLAYING || abs(smoothTime.longValue - targetTime) > 1000) {
-            smoothTime.longValue = targetTime
-        }
-    }
-
-    // Smooth update loop
-    LaunchedEffect(isPlaying) {
-        if (isPlaying == PlaybackState.PLAYING) {
-            var lastFrameTime = withFrameNanos { it }
-            while (isActive) {
-                withFrameNanos { frameTime ->
-                    val delta = (frameTime - lastFrameTime) / 1_000_000 // ns to ms
-                    if (delta > 0) {
-                        smoothTime.longValue += delta
-                    }
-                    lastFrameTime = frameTime
-                }
-            }
-        }
-    }
-    return smoothTime
-}
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerOverlay(
@@ -337,9 +313,26 @@ fun PlayerOverlay(
         playerManager.setUiVisible(uiVisible)
     }
     // Window Aspect Ratio State
-    var windowAspectRatio by remember { mutableStateOf(AppSettingsStore.playerWindowAspectRatio) }
+    var windowAspectRatio by remember { mutableStateOf(PlayingSettingsStore.playerWindowAspectRatio) }
 
-    var subtitleSettings by remember { mutableStateOf(SubtitleSettings()) }
+    val playerViewModel: PlayerViewModel = koinViewModel()
+    val subtitleSettingsFromVm by playerViewModel.subtitleSettings.collectAsState()
+
+    var subtitleSettings by remember {
+        mutableStateOf(subtitleSettingsFromVm)
+    }
+
+    LaunchedEffect(subtitleSettingsFromVm) {
+        if (subtitleSettings != subtitleSettingsFromVm) {
+            subtitleSettings = subtitleSettingsFromVm
+        }
+    }
+
+    LaunchedEffect(subtitleSettings) {
+        if (subtitleSettings != subtitleSettingsFromVm) {
+            playerViewModel.updateSubtitleSettings(subtitleSettings)
+        }
+    }
 
     var isCursorVisible by remember { mutableStateOf(true) }
     var lastMouseMoveTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -362,12 +355,11 @@ fun PlayerOverlay(
 //    val scope = rememberCoroutineScope()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
-    val playerViewModel: PlayerViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
     val episodeListViewModel: EpisodeListViewModel = koinViewModel()
     val episodeListState by episodeListViewModel.uiState.collectAsState()
     var episodeList by remember { mutableStateOf(emptyList<EpisodeListResponse>()) }
-    var isAutoPlay by remember { mutableStateOf(AppSettingsStore.autoPlay) }
+    var isAutoPlay by remember { mutableStateOf(PlayingSettingsStore.autoPlay) }
     val playPlayState by playPlayViewModel.uiState.collectAsState()
     val mp4Parser: Mp4Parser = koinInject()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
@@ -551,62 +543,6 @@ fun PlayerOverlay(
 
     LaunchedEffect(resetSubtitleState) {
         if (resetSubtitleState is UiState.Success) {
-//            val cache = playingInfoCache
-//            val startPos = mediaPlayer.getCurrentPositionMillis()
-//            if (cache != null) {
-//                // Re-fetch play link or use existing one?
-//                // Usually resetSubtitle just changes state on server, we might need to re-request play link or just reuse.
-//                // Assuming we can reuse existing playLink logic but re-evaluate subtitles.
-//
-//                // We need to re-evaluate how to play based on new subtitle selection
-//                val subtitleStream = cache.currentSubtitleStream
-//                val playLink = cache.playLink ?: ""
-//
-//                var extraFiles = MediaExtraFiles()
-//                var actualPlayLink = playLink
-//                var isM3u8 = false
-//                var shouldStartPlayback = true
-//
-//                if (subtitleStream != null) {
-//                    extraFiles = getMediaExtraFiles(subtitleStream, playLink)
-//                }
-//
-//                if (playLink.contains(".m3u8")) {
-//                    isM3u8 = true
-//                    // HLS logic
-//                    try {
-//                        // Check if it's an internal subtitle
-//                        if (subtitleStream != null && subtitleStream.isExternal == 0) {
-//                            // Reload HLS subtitle repository to fetch new segments
-//                            // hlsSubtitleUtil?.reload() // Removed reload() to avoid re-initialization conflict
-//                            // Don't restart playback for internal subtitles
-//                            if (cache.previousSubtitle?.isExternal == 0) {
-//                                shouldStartPlayback = false
-//                            }
-//                        }
-//                    } catch (e: Exception) {
-//                        logger.w("ResetSubtitle: Failed to parse m3u8: ${e.message}")
-//                    }
-//                } else if (cache.isUseDirectLink) {
-//                    // Direct link logic (usually for external subtitles or non-HLS)
-//                    val (link, start) = getDirectPlayLink(
-//                        cache.currentVideoStream.mediaGuid,
-//                        startPos,
-//                        mp4Parser
-//                    )
-//                    actualPlayLink = link
-//                }
-//
-////                if (shouldStartPlayback) {
-////                    startPlayback(
-////                        mediaPlayer,
-////                        actualPlayLink,
-////                        startPos,
-////                        extraFiles,
-////                        isM3u8
-////                    )
-////                }
-//            }
             mediaPViewModel.clearError()
         }
     }
@@ -826,7 +762,7 @@ fun PlayerOverlay(
 
     val videoBuffered by remember { mutableFloatStateOf(0f) }
 
-    // 上一次播放状态
+    // 上一次播放状�?
     var lastPlayState by remember { mutableStateOf<PlaybackState?>(null) }
 
     // 当播放状态变为暂停时，确保UI可见并调用playRecord接口
@@ -947,7 +883,7 @@ fun PlayerOverlay(
         }
 
         // Apply Player Fullscreen preference
-        if (AppSettingsStore.playerIsFullscreen) {
+        if (PlayingSettingsStore.playerIsFullscreen) {
             windowState.placement = WindowPlacement.Fullscreen
         } else {
             // Restore Player Window Position
@@ -961,9 +897,9 @@ fun PlayerOverlay(
         onDispose {
             // Save Player Preference on exit
             if (windowState.placement == WindowPlacement.Fullscreen) {
-                AppSettingsStore.playerIsFullscreen = true
+                PlayingSettingsStore.playerIsFullscreen = true
             } else {
-                AppSettingsStore.playerIsFullscreen = false
+                PlayingSettingsStore.playerIsFullscreen = false
                 // Note: playerWindowWidth/Height are updated via LaunchedEffect below
 
                 // Save position on exit
@@ -986,11 +922,28 @@ fun PlayerOverlay(
     }
 
     // Dynamic Resize based on Video
-    LaunchedEffect(playingInfoCache?.currentVideoStream, windowAspectRatio) {
+    LaunchedEffect(
+        playingInfoCache?.itemGuid,
+        playingInfoCache?.currentVideoStream,
+        windowAspectRatio
+    ) {
+        // 延迟一点时间确保窗口状态已稳定（特别是在窗口刚创建时）
+        delay(100)
         val videoStream = playingInfoCache?.currentVideoStream
-        if (videoStream != null && !AppSettingsStore.playerIsFullscreen && windowState.placement != WindowPlacement.Fullscreen) {
-            val baseWidth = AppSettingsStore.playerWindowWidth
-            val baseHeight = AppSettingsStore.playerWindowHeight
+        logger.i("Dynamic Resize Check: videoStream=$videoStream, placement=${windowState.placement}")
+        if (videoStream != null && windowState.placement != WindowPlacement.Fullscreen) {
+            if (windowState.placement == WindowPlacement.Maximized) {
+                windowState.placement = WindowPlacement.Floating
+            }
+
+            // 强制使用当前窗口实际大小作为基准，确保调整基于当前状态
+            val currentWidth = windowState.size.width.value
+            val currentHeight = windowState.size.height.value
+
+            // 确保有有效值
+            val baseWidth = if (!currentWidth.isNaN() && currentWidth > 0f) currentWidth else 1280f
+            val baseHeight =
+                if (!currentHeight.isNaN() && currentHeight > 0f) currentHeight else 720f
 
             val optimalSize = calculateOptimalPlayerWindowSize(
                 videoStream,
@@ -998,6 +951,7 @@ fun PlayerOverlay(
                 baseHeight,
                 windowAspectRatio
             )
+            logger.i("Dynamic Resize: optimalSize=$optimalSize")
             if (optimalSize != null) {
                 isProgrammaticResize = true
                 windowState.size = optimalSize
@@ -1067,6 +1021,9 @@ fun PlayerOverlay(
                     true
                 )
         ) {
+            LaunchedEffect(maxWidth, maxHeight) {
+                PlayingSettingsStore.saveLastPlayerScreenSize(maxWidth.value, maxHeight.value)
+            }
             // 视频层 - 从标题栏下方开始显示
             key(surfaceRecreateKey) {
                 MediampPlayerSurface(
@@ -1080,10 +1037,10 @@ fun PlayerOverlay(
                                 onDoubleTap = {
                                     if (windowState.placement == WindowPlacement.Fullscreen) {
                                         windowState.placement = WindowPlacement.Floating
-                                        AppSettingsStore.playerIsFullscreen = false
+                                        PlayingSettingsStore.playerIsFullscreen = false
                                     } else {
                                         windowState.placement = WindowPlacement.Fullscreen
-                                        AppSettingsStore.playerIsFullscreen = true
+                                        PlayingSettingsStore.playerIsFullscreen = true
                                     }
                                 }
                             )
@@ -1278,7 +1235,7 @@ fun PlayerOverlay(
                     onLastVolumeChange = { lastVolume = it },
                     onWindowAspectRatioChanged = {
                         windowAspectRatio = it
-                        AppSettingsStore.playerWindowAspectRatio = it
+                        PlayingSettingsStore.playerWindowAspectRatio = it
                     },
                     episodeList = episodeList,
                     currentEpisodeGuid = playingInfoCache?.itemGuid ?: "",
@@ -1286,7 +1243,7 @@ fun PlayerOverlay(
                     isAutoPlay = isAutoPlay,
                     onAutoPlayChanged = {
                         isAutoPlay = it
-                        AppSettingsStore.autoPlay = it
+                        PlayingSettingsStore.autoPlay = it
                     },
                     onEpisodeControlHoverChanged = { isEpisodeControlHovered = it },
                     nextEpisode = nextEpisode,
@@ -1523,13 +1480,14 @@ fun PlayerControlRow(
         ) {
             // 倍速
             val playbackSpeedFeature = remember(mediaPlayer) { mediaPlayer.features[PlaybackSpeed] }
-            
+
             // 直接访问 State 的 value 属性以触发重组
             val speedStateValue = playbackSpeedFeature?.value
             val currentSpeedValue = (speedStateValue as? Number)?.toFloat() ?: 1f
 
             val currentSpeedItem = remember(currentSpeedValue) {
-                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f } ?: speeds.find { it.value == 1.0f } ?: speeds[4]
+                speeds.find { kotlin.math.abs(it.value - currentSpeedValue) < 0.01f }
+                    ?: speeds.find { it.value == 1.0f } ?: speeds[4]
             }
 
             SpeedControlFlyout(
@@ -1612,6 +1570,55 @@ fun PlayerControlRow(
                 onHoverStateChanged = onVolumeControlHoverChanged,
                 modifier = Modifier.size(50.dp)
             )
+
+            // 小窗模式
+            val pipSpec = PlayerResourceManager.toPipSpec
+            if (pipSpec != null) {
+                val pipComposition by rememberLottieComposition { pipSpec }
+                var isPipHovered by remember { mutableStateOf(false) }
+                var isPipPlaying by remember { mutableStateOf(false) }
+                val pipProgress by animateLottieCompositionAsState(
+                    composition = pipComposition,
+                    isPlaying = isPipPlaying,
+                    iterations = 1
+                )
+                val playerManager = LocalPlayerManager.current
+
+                LaunchedEffect(isPipHovered) {
+                    if (isPipHovered) {
+                        isPipPlaying = true
+                    }
+                }
+
+                LaunchedEffect(pipProgress) {
+                    if (pipProgress == 1f) {
+                        isPipPlaying = false
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            playerManager.isPipMode = true
+                        }
+                        .onPointerEvent(PointerEventType.Enter) { isPipHovered = true }
+                        .onPointerEvent(PointerEventType.Exit) { isPipHovered = false },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = rememberLottiePainter(pipComposition, progress = { pipProgress }),
+                        contentDescription = "Picture in Picture",
+                        modifier = Modifier.fillMaxSize(),
+                        colorFilter = ColorFilter.tint(Color.White)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier)
+
             // 全屏
             val windowState = LocalWindowState.current
             val store = LocalStore.current
@@ -1620,10 +1627,10 @@ fun PlayerControlRow(
                 onClick = {
                     if (windowState.placement == WindowPlacement.Fullscreen) {
                         windowState.placement = WindowPlacement.Floating
-                        AppSettingsStore.playerIsFullscreen = false
+                        PlayingSettingsStore.playerIsFullscreen = false
                     } else {
                         windowState.placement = WindowPlacement.Fullscreen
-                        AppSettingsStore.playerIsFullscreen = true
+                        PlayingSettingsStore.playerIsFullscreen = true
                     }
                 }
             )
@@ -2118,79 +2125,6 @@ private suspend fun resolvePlayLink(
     }
 }
 
-private fun calculateOptimalPlayerWindowSize(
-    videoStream: VideoStream,
-    baseWidth: Float,
-    baseHeight: Float,
-    aspectRatioSetting: String = "AUTO"
-): DpSize? {
-    val videoW = videoStream.width.toFloat()
-    val videoH = videoStream.height.toFloat()
-
-    if (videoW <= 0 || videoH <= 0) return null
-
-    // Determine target aspect ratio
-    val targetAspectRatio = when (aspectRatioSetting) {
-        "4:3" -> 4f / 3f
-        "16:9" -> 16f / 9f
-        "21:9" -> 21f / 9f
-        else -> parseAspectRatio(videoStream.displayAspectRatio) ?: (videoW / videoH)
-    }
-
-    var targetH = baseHeight
-    var targetW = baseWidth
-
-    val currentAspectRatio = if (baseHeight > 0) baseWidth / baseHeight else targetAspectRatio
-
-    // Compensation only applies in AUTO mode
-    val compensation =
-        if (aspectRatioSetting == "AUTO") AppSettingsStore.playerWindowWidthCompensation else 0f
-
-    // Logic to expand window rather than shrink content
-    if (targetAspectRatio > currentAspectRatio) {
-        // Wider target: Keep Height, Expand Width
-        targetH = baseHeight
-        targetW = targetH * targetAspectRatio
-        targetW += compensation
-    } else {
-        // Narrower/Taller target: Keep Width, Expand Height
-        targetW = baseWidth
-        targetH = targetW / targetAspectRatio
-        // No width compensation needed when keeping baseWidth
-    }
-
-    // Constraints: +/- 50% of Base (Applied to Result)
-    val minW = baseWidth * 0.5f
-    val maxW = baseWidth * 1.5f
-
-    // Clamp width if needed (though Expand logic usually stays reasonable unless base was very distorted)
-    if (targetW < minW) targetW = minW
-    if (targetW > maxW) targetW = maxW
-
-    if (targetW != (if (targetAspectRatio > currentAspectRatio) baseHeight * targetAspectRatio + compensation else baseWidth)) {
-
-        val effectiveW = targetW - compensation
-        targetH = effectiveW / targetAspectRatio
-    }
-
-    return DpSize(targetW.dp, targetH.dp)
-}
-
-private fun parseAspectRatio(dar: String?): Float? {
-    if (dar.isNullOrBlank()) return null
-    return try {
-        val parts = dar.split(":")
-        if (parts.size == 2) {
-            val w = parts[0].toFloat()
-            val h = parts[1].toFloat()
-            if (h > 0) w / h else null
-        } else {
-            null
-        }
-    } catch (e: Exception) {
-        null
-    }
-}
 
 private fun handlePlayerKeyEvent(
     event: KeyEvent,
@@ -2299,17 +2233,17 @@ private fun handlePlayerKeyEvent(
             Key.F -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
-                    AppSettingsStore.playerIsFullscreen = false
+                    PlayingSettingsStore.playerIsFullscreen = false
                 } else {
                     windowState.placement = WindowPlacement.Fullscreen
-                    AppSettingsStore.playerIsFullscreen = true
+                    PlayingSettingsStore.playerIsFullscreen = true
                 }
             }
 
             Key.Escape -> {
                 if (windowState.placement == WindowPlacement.Fullscreen) {
                     windowState.placement = WindowPlacement.Floating
-                    AppSettingsStore.playerIsFullscreen = false
+                    PlayingSettingsStore.playerIsFullscreen = false
                 }
             }
 
@@ -2463,6 +2397,7 @@ fun PlayerTopBar(
                     onClick = {
                         mediaPlayer.stopPlayback()
                         playerViewModel.updatePlayingInfo(null)
+                        playerViewModel.updateSubtitleSettings(SubtitleSettings())
                         onBack()
                     },
                     interaction = interaction,
@@ -2530,6 +2465,7 @@ fun PlayerTopBar(
                             }
                             // 清除缓存
                             playerViewModel.updatePlayingInfo(null)
+                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
                             onBack()
                         }
                     ),
@@ -2636,7 +2572,7 @@ fun PlayerDialogs(
         isWarning = true,
         content = {
             Text(
-                "确定要删除 ${subtitleToDelete?.title} 外挂字幕吗？",
+                "确定要删�?${subtitleToDelete?.title} 外挂字幕吗？",
                 style = LocalTypography.current.body,
                 color = FluentTheme.colors.text.text.primary
             )
