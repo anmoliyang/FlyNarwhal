@@ -36,9 +36,9 @@ import com.jankinwu.fntv.client.ui.providable.LocalWebViewInitialized
 import com.jankinwu.fntv.client.ui.providable.LocalWebViewRestartRequired
 import com.jankinwu.fntv.client.ui.providable.LocalWindowHandle
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
-import com.jankinwu.fntv.client.ui.screen.NasLoginWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.FnConnectWindowRequest
 import com.jankinwu.fntv.client.ui.screen.LoginScreen
+import com.jankinwu.fntv.client.ui.screen.NasLoginWebViewScreen
 import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
 import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
@@ -253,6 +253,14 @@ fun main() {
 
                     // 小窗模式
                     if (playerManager.isPipMode) {
+                        // 如果处于全屏模式，退出全屏
+                        if (AppSettingsStore.playerIsFullscreen) {
+                            LaunchedEffect(Unit) {
+                                state.placement = WindowPlacement.Floating
+                                AppSettingsStore.playerIsFullscreen = false
+                            }
+                        }
+
                         PipPlayerWindow(
                             onClose = {
                                 player.stopPlayback()
