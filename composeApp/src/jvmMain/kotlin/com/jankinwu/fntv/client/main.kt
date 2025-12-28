@@ -56,6 +56,7 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
+import com.sun.jna.platform.win32.Kernel32
 import dev.datlag.kcef.KCEF
 import fntv_client_multiplatform.composeapp.generated.resources.Res
 import fntv_client_multiplatform.composeapp.generated.resources.icon
@@ -67,6 +68,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+import org.openani.mediamp.PlaybackState
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.compose.rememberMediampPlayer
@@ -74,6 +76,31 @@ import java.awt.Dimension
 import java.awt.Frame
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+
+private object WindowsDisplaySleepBlocker {
+    private const val ES_SYSTEM_REQUIRED = 0x00000001
+    private const val ES_DISPLAY_REQUIRED = 0x00000002
+    private const val ES_CONTINUOUS = 0x80000000.toInt()
+
+    private val logger = Logger.withTag("WindowsDisplaySleepBlocker")
+
+    fun setEnabled(enabled: Boolean) {
+        if (!currentPlatform().isWindows()) return
+        try {
+            val flags = if (enabled) {
+                ES_CONTINUOUS or ES_SYSTEM_REQUIRED or ES_DISPLAY_REQUIRED
+            } else {
+                ES_CONTINUOUS
+            }
+            val previous = Kernel32.INSTANCE.SetThreadExecutionState(flags)
+            if (previous == 0) {
+                logger.w { "SetThreadExecutionState returned 0 (failed), enabled=$enabled" }
+            }
+        } catch (t: Throwable) {
+            logger.w(t) { "Failed to set execution state, enabled=$enabled" }
+        }
+    }
+}
 
 @OptIn(FlowPreview::class)
 fun main() {
@@ -253,6 +280,16 @@ fun main() {
                     icon = icon,
                     undecorated = false
                 ) {
+                    val playState by player.playbackState.collectAsState()
+                    val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
+
+                    DisposableEffect(shouldBlockDisplaySleep) {
+                        WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                        onDispose {
+                            WindowsDisplaySleepBlocker.setEnabled(false)
+                        }
+                    }
+
                     LaunchedEffect(Unit) {
                         val baseWidth = 600
                         val baseHeight = 400
