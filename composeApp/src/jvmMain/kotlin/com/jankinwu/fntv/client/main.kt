@@ -48,10 +48,12 @@ import com.jankinwu.fntv.client.ui.window.PipPlayerWindow
 import com.jankinwu.fntv.client.utils.ComposeViewModelStoreOwner
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
+import com.jankinwu.fntv.client.utils.DesktopLogExporter
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
 import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
+import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
@@ -188,6 +190,8 @@ fun main() {
                 DesktopContext(mainState, dataDir, cacheDir, logDir, ExtraWindowProperties())
             }
 
+            val logExporter = remember { DesktopLogExporter(logDir) }
+
             val playerDesktopContext = remember(playerState) {
                 val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
                 val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
@@ -211,6 +215,7 @@ fun main() {
                 CompositionLocalProvider(
                     LocalViewModelStoreOwner provides viewModelStoreOwner,
                     LocalContext provides desktopContext,
+                    LocalLogExporter provides logExporter,
                     LocalPlayerManager provides playerManager,
                     LocalMediaPlayer provides player,
                     LocalFrameWindowScope provides this@Window,
@@ -298,6 +303,7 @@ fun main() {
                     CompositionLocalProvider(
                         LocalViewModelStoreOwner provides viewModelStoreOwner,
                         LocalContext provides playerDesktopContext,
+                        LocalLogExporter provides logExporter,
                         LocalPlayerManager provides playerManager,
                         LocalMediaPlayer provides player,
                         LocalFrameWindowScope provides this@Window,
@@ -406,6 +412,7 @@ fun main() {
                     CompositionLocalProvider(
                         LocalViewModelStoreOwner provides viewModelStoreOwner,
                         LocalContext provides fnConnectContext,
+                        LocalLogExporter provides logExporter,
                         LocalPlayerManager provides remember { PlayerManager() },
                         LocalFrameWindowScope provides this@Window,
                         LocalWindowState provides fnConnectWindowState,

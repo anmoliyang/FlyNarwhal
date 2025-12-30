@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -50,7 +51,6 @@ import com.jankinwu.fntv.client.data.store.UserInfoMemoryCache
 import com.jankinwu.fntv.client.icons.Download
 import com.jankinwu.fntv.client.icons.Logout
 import com.jankinwu.fntv.client.icons.PreRelease
-import com.jankinwu.fntv.client.icons.SkipLink
 import com.jankinwu.fntv.client.icons.Statement
 import com.jankinwu.fntv.client.icons.VersionInfo
 import com.jankinwu.fntv.client.manager.LoginStateManager
@@ -61,6 +61,7 @@ import com.jankinwu.fntv.client.ui.component.common.dialog.AboutDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.UpdateDialog
 import com.jankinwu.fntv.client.ui.providable.LocalStore
+import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.LogoutViewModel
 import com.jankinwu.fntv.client.viewmodel.UpdateViewModel
 import fntv_client_multiplatform.composeapp.generated.resources.Res
@@ -68,19 +69,23 @@ import fntv_client_multiplatform.composeapp.generated.resources.github_logo
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CardExpanderItem
+import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.DropDownButton
 import io.github.composefluent.component.Expander
+import io.github.composefluent.component.FluentDialog
 import io.github.composefluent.component.Icon
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.NavigationDisplayMode
+import io.github.composefluent.component.ProgressRing
+import io.github.composefluent.component.ProgressRingSize
 import io.github.composefluent.component.ScrollbarContainer
 import io.github.composefluent.component.Switcher
 import io.github.composefluent.component.Text
 import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberScrollbarAdapter
 import io.github.composefluent.icons.Icons
-import io.github.composefluent.icons.regular.ArrowUpRight
+import io.github.composefluent.icons.regular.ChevronDown
 import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Navigation
@@ -107,6 +112,54 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     val focusManager = LocalFocusManager.current
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showHardwareInfoDialog by remember { mutableStateOf(false) }
+
+    val logExporter = LocalLogExporter.current
+    val availableDates = remember { logExporter.getAvailableLogDates() }
+    var selectedDate by remember { mutableStateOf(availableDates.firstOrNull() ?: "") }
+    var isExporting by remember { mutableStateOf(false) }
+    var exportError by remember { mutableStateOf<String?>(null) }
+
+    if (isExporting) {
+        FluentDialog(
+            visible = true,
+            size = DialogSize.Standard
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "正在导出中...",
+                    style = FluentTheme.typography.subtitle,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(24.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ProgressRing(size = ProgressRingSize.Medium)
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("请稍候...")
+                }
+            }
+        }
+    }
+
+     if (exportError != null) {
+         CustomContentDialog(
+             title = "导出错误",
+             visible = true,
+             content = {
+                 Text(exportError ?: "未知错误")
+             },
+             onButtonClick = { _ -> exportError = null },
+             primaryButtonText = "确定"
+         )
+     }
 
     UpdateDialog(
         status = updateStatus,
@@ -519,6 +572,59 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                     icon = { Icon(Statement, null, modifier = Modifier.size(18.dp)) },
                     onClick = {
                         showHardwareInfoDialog = true
+                    }
+                )
+
+                CardExpanderItem(
+                    heading = { Text("导出错误日志") },
+                    caption = { Text("支持导出近三天的错误日志") },
+                    icon = { Icon(Download, null, modifier = Modifier.size(18.dp)) },
+                    trailing = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MenuFlyoutContainer(
+                                flyout = {
+                                    availableDates.forEach { date ->
+                                        MenuFlyoutItem(
+                                            text = { Text(date) },
+                                            onClick = {
+                                                selectedDate = date
+                                                isFlyoutVisible = false
+                                            }
+                                        )
+                                    }
+                                }
+                            ) {
+                                DropDownButton(
+                                    onClick = {
+                                        isFlyoutVisible = true
+                                    },
+                                    content = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(selectedDate)
+//                                            Spacer(Modifier.width(4.dp))
+//                                            Icon(Icons.Regular.ChevronDown, null, modifier = Modifier.size(12.dp))
+                                        }
+                                    }
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    logExporter.exportErrorLogs(
+                                        date = selectedDate,
+                                        onStart = { isExporting = true },
+                                        onComplete = { isExporting = false },
+                                        onError = {
+                                            isExporting = false
+                                            exportError = it
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                            ) {
+                                Text("导出")
+                            }
+                        }
                     }
                 )
 
