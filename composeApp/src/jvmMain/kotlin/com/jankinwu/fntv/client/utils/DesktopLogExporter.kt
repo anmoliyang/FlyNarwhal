@@ -83,12 +83,16 @@ class DesktopLogExporter(private val logsDir: File) : LogExporter {
             entries.add(currentEntry.toString())
         }
 
-        val errorIndices = entries.indices.filter { entries[it].contains("[ERROR]", ignoreCase = true) }
+        val errorIndices = entries.indices.filter {
+            val entry = entries[it]
+            entry.contains("[ERROR]", ignoreCase = true) ||
+                    (entry.contains("[KCEF]") && (entry.contains(":ERROR:", ignoreCase = true) || entry.contains(":FATAL:", ignoreCase = true)))
+        }
         val selectedIndices = mutableSetOf<Int>()
 
         for (errorIdx in errorIndices) {
-            val start = (errorIdx - 100).coerceAtLeast(0)
-            val end = (errorIdx + 100).coerceAtMost(entries.size - 1)
+            val start = (errorIdx - 50).coerceAtLeast(0)
+            val end = (errorIdx + 50).coerceAtMost(entries.size - 1)
             for (i in start..end) {
                 selectedIndices.add(i)
             }

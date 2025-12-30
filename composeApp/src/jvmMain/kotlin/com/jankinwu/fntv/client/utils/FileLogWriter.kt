@@ -14,7 +14,7 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 class FileLogWriter(private val logDir: File) : LogWriter() {
-    private val logFile: File
+    val logFile: File
     private val writer: PrintWriter
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val timeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
