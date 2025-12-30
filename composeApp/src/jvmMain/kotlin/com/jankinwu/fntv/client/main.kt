@@ -23,7 +23,6 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import co.touchlab.kermit.Logger
-import co.touchlab.kermit.Severity
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
@@ -31,6 +30,7 @@ import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.ProxyManager
 import com.jankinwu.fntv.client.ui.component.common.rememberComponentNavigator
+import com.jankinwu.fntv.client.ui.dialog.KcefInitErrorDialog
 import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
 import com.jankinwu.fntv.client.ui.providable.LocalMediaPlayer
 import com.jankinwu.fntv.client.ui.providable.LocalPlayerManager
@@ -46,6 +46,7 @@ import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
 import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
 import com.jankinwu.fntv.client.ui.window.PipPlayerWindow
+import com.jankinwu.fntv.client.ui.window.SplashScreen
 import com.jankinwu.fntv.client.utils.ComposeViewModelStoreOwner
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
@@ -55,23 +56,17 @@ import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
 import com.jankinwu.fntv.client.utils.LocalLogExporter
+import com.jankinwu.fntv.client.utils.WebViewBootstrap
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
 import com.sun.jna.platform.win32.Kernel32
 import dev.datlag.kcef.KCEF
-import fntv_client_multiplatform.composeapp.generated.resources.Res
-import fntv_client_multiplatform.composeapp.generated.resources.icon
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import flynarwhal.composeapp.generated.resources.Res
+import flynarwhal.composeapp.generated.resources.icon
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
 import org.koin.compose.viewmodel.koinViewModel
@@ -79,8 +74,6 @@ import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.io.File
-import java.io.RandomAccessFile
-import java.util.concurrent.atomic.AtomicBoolean
 
 private object WindowsDisplaySleepBlocker {
     private const val ES_SYSTEM_REQUIRED = 0x00000001
@@ -113,13 +106,19 @@ fun main() {
     Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
     Logger.withTag("main").i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
-    WebViewBootstrap.start(
-        installDir = kcefInstallDir(),
-        cacheDir = kcefCacheDir(),
-        logDir = logDir
-    )
+    // Cleanup old KCEF directories
+    val baseDir = kcefBaseDir()
+    cleanupOldKcefDirs(baseDir, BuildConfig.VERSION_NAME)
 
     application {
+        LaunchedEffect(Unit) {
+            WebViewBootstrap.start(
+                installDir = kcefInstallDir(),
+                cacheDir = kcefCacheDir(),
+                logDir = logDir
+            )
+        }
+
         DisposableEffect(Unit) {
             ProxyManager.start()
             onDispose {
@@ -203,6 +202,29 @@ fun main() {
                 DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
             }
 
+            val osName = System.getProperty("os.name").lowercase()
+            val isMacOS = osName.contains("mac")
+
+            if (isMacOS && !webViewInitialized && webViewInitError == null) {
+                Window(
+                    onCloseRequest = ::exitApplication,
+                    title = title,
+                    state = rememberWindowState(
+                        width = 400.dp,
+                        height = 200.dp,
+                        position = WindowPosition(Alignment.Center)
+                    ),
+                    undecorated = true,
+                    transparent = true,
+                    icon = icon
+                ) {
+                    SplashScreen(
+                        icon = icon,
+                        title = title,
+                        error = webViewInitError
+                    )
+                }
+            } else {
             // 主窗口
             Window(
                 onCloseRequest = ::exitApplication,
@@ -230,6 +252,14 @@ fun main() {
                     LocalWebViewRestartRequired provides webViewRestartRequired,
                     LocalWebViewInitError provides webViewInitError
                 ) {
+                    var errorDialogDismissed by remember { mutableStateOf(false) }
+                    if (webViewInitError != null && !errorDialogDismissed) {
+                        KcefInitErrorDialog(
+                            error = webViewInitError,
+                            onDismiss = { errorDialogDismissed = true }
+                        )
+                    }
+
                     WindowFrame(
                         onCloseRequest = ::exitApplication,
                         icon = icon,
@@ -461,133 +491,56 @@ fun main() {
                 }
             }
             }
+            }
         }
     }
 }
 
-private object WebViewBootstrap {
-    private val started = AtomicBoolean(false)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    val initialized = MutableStateFlow(false)
-    val restartRequired = MutableStateFlow(false)
-    val initError = MutableStateFlow<Throwable?>(null)
 
-    fun start(installDir: File, cacheDir: File, logDir: File) {
-        if (!started.compareAndSet(false, true)) return
-
-        // Clean up legacy kcef.log in logDir if it exists
-        File(cacheDir, "kcef.log").delete()
-
-        // Use cacheDir for the raw KCEF log to avoid polluting the logs directory
-        val kcefLog = File(cacheDir, "kcef.log")
-        kcefLog.deleteOnExit()
-
-        scope.launch {
-            try {
-                if (!installDir.exists()) installDir.mkdirs()
-                if (!cacheDir.exists()) cacheDir.mkdirs()
-
-                KCEF.init(
-                    builder = {
-                        installDir(installDir)
-                        settings {
-                            cachePath = cacheDir.absolutePath
-                            logFile = kcefLog.absolutePath
-                            // logSeverity = KCEFBuilder.Settings.LogSeverity.INFO
-                        }
-                        progress {
-                            onInitialized {
-                                initialized.value = true
-                            }
-                        }
-                    },
-                    onError = { throwable ->
-                        initError.value = throwable
-                    },
-                    onRestartRequired = {
-                        restartRequired.value = true
-                    }
-                )
-            } catch (t: Throwable) {
-                initError.value = t
-            }
-        }
-
-        scope.launch {
-            tailKcefLog(kcefLog)
-        }
-    }
-
-    private suspend fun tailKcefLog(file: File) {
-        var retries = 0
-        while (!file.exists() && retries < 30) {
-            delay(1000)
-            retries++
-        }
-        if (!file.exists()) return
-
-        try {
-            val reader = RandomAccessFile(file, "r")
-            var filePointer = 0L
-
-            while (scope.isActive) {
-                val length = file.length()
-                if (length < filePointer) {
-                    filePointer = 0
-                    reader.seek(0)
-                }
-
-                if (length > filePointer) {
-                    reader.seek(filePointer)
-                    var line = reader.readLine()
-                    while (line != null) {
-                        if (line.isNotEmpty()) {
-                            val severity = when {
-                                line.contains(":ERROR:", ignoreCase = true) || line.contains(":FATAL:", ignoreCase = true) -> Severity.Error
-                                line.contains(":WARNING:", ignoreCase = true) -> Severity.Warn
-                                line.contains(":VERBOSE:", ignoreCase = true) -> Severity.Verbose
-                                else -> Severity.Info
-                            }
-                            Logger.log(severity, "KCEF", null, line)
-                        }
-                        line = reader.readLine()
-                    }
-                    filePointer = reader.filePointer
-                }
-                delay(1000)
-            }
-            reader.close()
-        } catch (e: Exception) {
-            Logger.withTag("KCEF").e(e) { "Error tailing log file" }
+private fun kcefBaseDir(): File {
+    val platform = currentPlatformDesktop()
+    return when (platform) {
+        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
+        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fly-narwhal")
+        is Platform.Windows -> {
+            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
+            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
         }
     }
 }
 
 private fun kcefInstallDir(): File {
-    val platform = currentPlatformDesktop()
-    val baseDir = when (platform) {
-        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
-        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
-        is Platform.Windows -> {
-            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
-        }
-    }
-    return File(baseDir, "kcef-bundle")
+    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return File(kcefBaseDir(), "kcef-bundle-$version")
 }
 
 private fun kcefCacheDir(): File {
-    val platform = currentPlatformDesktop()
-    val baseDir = when (platform) {
-        is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fn-media")
-        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fn-media")
-        is Platform.Windows -> {
-            val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
-            File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
+    val version = BuildConfig.VERSION_NAME.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    return File(kcefBaseDir(), "kcef-cache-$version")
+}
+
+/**
+ * Cleanup old KCEF bundle and cache directories to save disk space.
+ * Only keeps the directories for the current version.
+ */
+private fun cleanupOldKcefDirs(baseDir: File, currentVersion: String) {
+    val versionTag = currentVersion.replace(Regex("[^A-Za-z0-9._-]"), "_")
+    val currentBundle = "kcef-bundle-$versionTag"
+    val currentCache = "kcef-cache-$versionTag"
+
+    baseDir.listFiles { file ->
+        file.isDirectory && (file.name.startsWith("kcef-bundle-") || file.name.startsWith("kcef-cache-"))
+    }?.forEach { file ->
+        if (file.name != currentBundle && file.name != currentCache) {
+            try {
+                file.deleteRecursively()
+                Logger.withTag("main").i { "Deleted old KCEF directory: ${file.name}" }
+            } catch (e: Exception) {
+                Logger.withTag("main").e(e) { "Failed to delete old KCEF directory: ${file.name}" }
+            }
         }
     }
-    return File(baseDir, "kcef-cache")
 }
 
 /**
