@@ -35,6 +35,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -132,13 +133,13 @@ import com.jankinwu.fntv.client.ui.providable.LocalToastManager
 import com.jankinwu.fntv.client.ui.providable.LocalTypography
 import com.jankinwu.fntv.client.ui.providable.LocalWindowState
 import com.jankinwu.fntv.client.ui.providable.defaultVariableFamily
+import com.jankinwu.fntv.client.utils.FileUtil
 import com.jankinwu.fntv.client.utils.HiddenPointerIcon
 import com.jankinwu.fntv.client.utils.HlsSubtitleUtil
 import com.jankinwu.fntv.client.utils.Mp4Parser
 import com.jankinwu.fntv.client.utils.SubtitleCue
-import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
-import com.jankinwu.fntv.client.utils.chooseFile
+import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
@@ -162,13 +163,18 @@ import io.github.composefluent.component.DialogSize
 import io.github.composefluent.component.FontIconDefaults
 import io.github.composefluent.component.FontIconSize
 import io.github.composefluent.component.NavigationDefaults
+import io.github.vinceglb.filekit.PlatformFile
+import io.github.vinceglb.filekit.name
+import io.github.vinceglb.filekit.readBytes
 import korlibs.crypto.MD5
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -310,7 +316,7 @@ fun PlayerOverlay(
         isSpeedControlHovered || isVolumeControlHovered || isQualityControlHovered || isSettingsMenuHovered || isSubtitleControlHovered || isEpisodeControlHovered || isNextEpisodeHovered
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
     val frameWindowScope = LocalFrameWindowScope.current
-//    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val tagViewModel: TagViewModel = koinViewModel()
     val playPlayViewModel: PlayPlayViewModel = koinViewModel()
@@ -347,8 +353,16 @@ fun PlayerOverlay(
     }
 
     LaunchedEffect(episodeListState) {
-        if (episodeListState is UiState.Success) {
-            episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+        when (episodeListState) {
+            is UiState.Success -> {
+                episodeList = (episodeListState as UiState.Success<List<EpisodeListResponse>>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("episodeListState error: ${(episodeListState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
@@ -500,8 +514,16 @@ fun PlayerOverlay(
     val resetSubtitleState by mediaPViewModel.resetSubtitleState.collectAsState()
 
     LaunchedEffect(resetSubtitleState) {
-        if (resetSubtitleState is UiState.Success) {
-            mediaPViewModel.clearError()
+        when (resetSubtitleState) {
+            is UiState.Success -> {
+                mediaPViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("resetSubtitleState error: ${(resetSubtitleState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     val resetQualityState by mediaPViewModel.resetQualityState.collectAsState()
@@ -533,22 +555,43 @@ fun PlayerOverlay(
     }
 
     LaunchedEffect(iso6391State, iso6392State, iso3166State) {
-        val newIso6391Map = if (iso6391State is UiState.Success) {
-            (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso6391Map = when (iso6391State) {
+            is UiState.Success -> {
+                (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6391State error: ${(iso6391State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
-        val newIso6392Map = if (iso6392State is UiState.Success) {
-            (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso6392Map = when (iso6392State) {
+            is UiState.Success -> {
+                (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6392State error: ${(iso6392State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
-        val newIso3166Map = if (iso3166State is UiState.Success) {
-            (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else {
-            emptyMap()
+        val newIso3166Map = when (iso3166State) {
+            is UiState.Success -> {
+                (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso3166State error: ${(iso3166State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
         }
 
         isoTagData = IsoTagData(
@@ -590,8 +633,15 @@ fun PlayerOverlay(
                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                         try {
                             val userInfoState = userInfoViewModel.uiState.value
-                            val userInfo =
-                                if (userInfoState is UiState.Success) userInfoState.data else null
+                            val userInfo = when (userInfoState) {
+                                is UiState.Success -> userInfoState.data
+                                is UiState.Error -> {
+                                    logger.e("userInfoState error in refreshSubtitleList: ${userInfoState.message}")
+                                    null
+                                }
+
+                                else -> null
+                            }
 
                             if (userInfo != null) {
                                 val sourceName =
@@ -633,81 +683,121 @@ fun PlayerOverlay(
         }
 
     LaunchedEffect(subtitleDeleteState) {
-        if (subtitleDeleteState is UiState.Success) {
-            refreshSubtitleList(null)
-            subtitleDeleteViewModel.clearError()
+        when (subtitleDeleteState) {
+            is UiState.Success -> {
+                refreshSubtitleList(null)
+                subtitleDeleteViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("subtitleDeleteState error: ${(subtitleDeleteState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(subtitleUploadState) {
-        if (subtitleUploadState is UiState.Success) {
-            refreshSubtitleList(null)
-            subtitleUploadViewModel.clearError()
+        when (subtitleUploadState) {
+            is UiState.Success -> {
+                refreshSubtitleList(null)
+                subtitleUploadViewModel.clearError()
+            }
+
+            is UiState.Error -> {
+                logger.e("subtitleUploadState error: ${(subtitleUploadState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
     LaunchedEffect(playPlayState) {
-        if (playPlayState is UiState.Success) {
-            (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
-                val newPlayLink = playResponse.playLink
-                playerViewModel.updatePlayingInfo(
-                    playingInfoCache?.copy(
-                        playLink = newPlayLink,
-                        isUseDirectLink = false
-                    )
-                )
-                val extraFiles =
-                    playingInfoCache?.currentSubtitleStream?.let {
-                        getMediaExtraFiles(
-                            it,
-                            newPlayLink
+        when (playPlayState) {
+            is UiState.Success -> {
+                (playPlayState as UiState.Success<PlayPlayResponse>).data.let { playResponse ->
+                    val newPlayLink = playResponse.playLink
+                    playerViewModel.updatePlayingInfo(
+                        playingInfoCache?.copy(
+                            playLink = newPlayLink,
+                            isUseDirectLink = false
                         )
-                    }
-                        ?: MediaExtraFiles()
-                startPlayback(
-                    mediaPlayer,
-                    newPlayLink,
-                    mediaPlayer.getCurrentPositionMillis(),
-                    extraFiles,
-                    true // isM3u8
-                )
+                    )
+                    val extraFiles =
+                        playingInfoCache?.currentSubtitleStream?.let {
+                            getMediaExtraFiles(
+                                it,
+                                newPlayLink
+                            )
+                        }
+                            ?: MediaExtraFiles()
+                    startPlayback(
+                        mediaPlayer,
+                        newPlayLink,
+                        mediaPlayer.getCurrentPositionMillis(),
+                        extraFiles,
+                        true // isM3u8
+                    )
+                }
             }
+
+            is UiState.Error -> {
+                logger.e("playPlayState error: ${(playPlayState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(quitMediaState) {
-        if (quitMediaState is UiState.Success) {
-            logger.i("Quality switch: Switching to Direct Link")
-            val cache = playingInfoCache
-            val startPos = mediaPlayer.getCurrentPositionMillis()
-            if (cache != null) {
-                val (link, start) = getDirectPlayLink(
-                    cache.currentVideoStream.mediaGuid,
-                    startPos,
-                    mp4Parser
-                )
-                val extraFiles =
-                    cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
-                        ?: MediaExtraFiles()
+        when (quitMediaState) {
+            is UiState.Success -> {
+                logger.i("Quality switch: Switching to Direct Link")
+                val cache = playingInfoCache
+                val startPos = mediaPlayer.getCurrentPositionMillis()
+                if (cache != null) {
+                    val (link, start) = getDirectPlayLink(
+                        cache.currentVideoStream.mediaGuid,
+                        startPos,
+                        mp4Parser
+                    )
+                    val extraFiles =
+                        cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
+                            ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
-                startPlayback(
-                    mediaPlayer,
-                    link,
-                    start,
-                    extraFiles,
-                    false
-                ) // isM3u8 = false for direct link (usually)
+                    startPlayback(
+                        mediaPlayer,
+                        link,
+                        start,
+                        extraFiles,
+                        false
+                    ) // isM3u8 = false for direct link (usually)
+                }
+                mediaPViewModel.clearError()
             }
-            mediaPViewModel.clearError()
+
+            is UiState.Error -> {
+                logger.e("quitMediaState error: ${(quitMediaState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
     LaunchedEffect(resetQualityState) {
-        if (resetQualityState is UiState.Success) {
-            val response =
-                (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
-            if (response != null && response.result == "succ") {
-                mediaPViewModel.clearError()
+        when (resetQualityState) {
+            is UiState.Success -> {
+                val response =
+                    (resetQualityState as UiState.Success<*>).data as? MediaResetQualityResponse
+                if (response != null && response.result == "succ") {
+                    mediaPViewModel.clearError()
+                }
             }
+
+            is UiState.Error -> {
+                logger.e("resetQualityState error: ${(resetQualityState as UiState.Error).message}")
+            }
+
+            else -> {}
         }
     }
 
@@ -1202,18 +1292,31 @@ fun PlayerOverlay(
                     onOpenAddLocalSubtitle = {
                         val mediaGuid = playingInfoCache?.currentFileStream?.guid
                         if (mediaGuid != null) {
-                            val file = chooseFile(
-                                frameWindowScope,
-                                arrayOf("ass", "srt", "vtt", "sub", "ssa"),
-                                "选择字幕文件"
-                            )
-                            file?.let { selectedFile ->
-                                val byteArray = selectedFile.readBytes()
-                                subtitleUploadViewModel.uploadSubtitle(
-                                    mediaGuid,
-                                    byteArray,
-                                    selectedFile.name
-                                )
+                            scope.launch {
+                                try {
+                                    logger.i("Start picking subtitle file")
+                                    val file: PlatformFile? = withContext(Dispatchers.IO) {
+                                        FileUtil.pickFile(
+                                            listOf("ass", "srt", "vtt", "sub", "ssa"),
+                                            "选择字幕文件"
+                                        )
+                                    }
+                                    logger.i("Selected subtitle file: ${file?.name}")
+                                    if (file != null) {
+                                        val byteArray = withContext(Dispatchers.IO) {
+                                            file.readBytes()
+                                        }
+                                        subtitleUploadViewModel.uploadSubtitle(
+                                            mediaGuid,
+                                            byteArray,
+                                            file.name
+                                        )
+                                    } else {
+                                        logger.i("No file selected")
+                                    }
+                                } catch (e: Exception) {
+                                    logger.e("Error picking subtitle file", e)
+                                }
                             }
                         }
                     },
@@ -1244,7 +1347,8 @@ fun PlayerOverlay(
                         }
                     },
                     isNextEpisodeHovered = isNextEpisodeHovered,
-                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it }
+                    onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
+                    playRecordViewModel = playRecordViewModel
                 )
             }
 
@@ -1383,7 +1487,8 @@ fun PlayerControlRow(
     nextEpisode: EpisodeListResponse? = null,
     onPlayNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Row(
@@ -1430,6 +1535,17 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(-10_000)
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快退时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快退时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             Icon(
@@ -1443,6 +1559,17 @@ fun PlayerControlRow(
                         indication = null,
                         onClick = {
                             mediaPlayer.skip(10_000)
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = playingInfoCache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("快进时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("快进时调用playRecord失败：缓存为空")
+                                },
+                            )
                         })
             )
             // 下一集按钮
@@ -1974,7 +2101,11 @@ private suspend fun getUserInfo(userInfoViewModel: UserInfoViewModel): UserInfoR
 
     return when (userInfoState) {
         is UiState.Success -> userInfoState.data
-        is UiState.Error -> throw Exception(userInfoState.message)
+        is UiState.Error -> {
+            logger.e("getUserInfo error: ${userInfoState.message}")
+            throw Exception(userInfoState.message)
+        }
+
         else -> throw Exception("Unknown Error")
     }
 }
@@ -2610,7 +2741,8 @@ fun PlayerBottomBar(
     nextEpisode: EpisodeListResponse? = null,
     onNextEpisode: (() -> Unit)? = null,
     isNextEpisodeHovered: Boolean = false,
-    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null
+    onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
+    playRecordViewModel: PlayRecordViewModel
 ) {
     Column(
         modifier = Modifier
@@ -2670,7 +2802,8 @@ fun PlayerBottomBar(
                 nextEpisode = nextEpisode,
                 onPlayNextEpisode = onNextEpisode,
                 isNextEpisodeHovered = isNextEpisodeHovered,
-                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged
+                onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
+                playRecordViewModel = playRecordViewModel
             )
         }
     }

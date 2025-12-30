@@ -23,6 +23,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import co.touchlab.kermit.Logger
+import co.touchlab.kermit.Severity
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
@@ -48,10 +49,12 @@ import com.jankinwu.fntv.client.ui.window.PipPlayerWindow
 import com.jankinwu.fntv.client.utils.ComposeViewModelStoreOwner
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
+import com.jankinwu.fntv.client.utils.DesktopLogExporter
 import com.jankinwu.fntv.client.utils.ExecutableDirectoryDetector
 import com.jankinwu.fntv.client.utils.ExtraWindowProperties
 import com.jankinwu.fntv.client.utils.FileLogWriter
 import com.jankinwu.fntv.client.utils.LocalContext
+import com.jankinwu.fntv.client.utils.LocalLogExporter
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
@@ -64,8 +67,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.KoinApplication
@@ -74,6 +79,7 @@ import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.concurrent.atomic.AtomicBoolean
 
 private object WindowsDisplaySleepBlocker {
@@ -109,7 +115,8 @@ fun main() {
 
     WebViewBootstrap.start(
         installDir = kcefInstallDir(),
-        cacheDir = kcefCacheDir()
+        cacheDir = kcefCacheDir(),
+        logDir = logDir
     )
 
     application {
@@ -188,6 +195,8 @@ fun main() {
                 DesktopContext(mainState, dataDir, cacheDir, logDir, ExtraWindowProperties())
             }
 
+            val logExporter = remember { DesktopLogExporter(logDir) }
+
             val playerDesktopContext = remember(playerState) {
                 val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
                 val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
@@ -211,6 +220,7 @@ fun main() {
                 CompositionLocalProvider(
                     LocalViewModelStoreOwner provides viewModelStoreOwner,
                     LocalContext provides desktopContext,
+                    LocalLogExporter provides logExporter,
                     LocalPlayerManager provides playerManager,
                     LocalMediaPlayer provides player,
                     LocalFrameWindowScope provides this@Window,
@@ -298,6 +308,7 @@ fun main() {
                     CompositionLocalProvider(
                         LocalViewModelStoreOwner provides viewModelStoreOwner,
                         LocalContext provides playerDesktopContext,
+                        LocalLogExporter provides logExporter,
                         LocalPlayerManager provides playerManager,
                         LocalMediaPlayer provides player,
                         LocalFrameWindowScope provides this@Window,
@@ -406,6 +417,7 @@ fun main() {
                     CompositionLocalProvider(
                         LocalViewModelStoreOwner provides viewModelStoreOwner,
                         LocalContext provides fnConnectContext,
+                        LocalLogExporter provides logExporter,
                         LocalPlayerManager provides remember { PlayerManager() },
                         LocalFrameWindowScope provides this@Window,
                         LocalWindowState provides fnConnectWindowState,
@@ -461,8 +473,15 @@ private object WebViewBootstrap {
     val restartRequired = MutableStateFlow(false)
     val initError = MutableStateFlow<Throwable?>(null)
 
-    fun start(installDir: File, cacheDir: File) {
+    fun start(installDir: File, cacheDir: File, logDir: File) {
         if (!started.compareAndSet(false, true)) return
+
+        // Clean up legacy kcef.log in logDir if it exists
+        File(cacheDir, "kcef.log").delete()
+
+        // Use cacheDir for the raw KCEF log to avoid polluting the logs directory
+        val kcefLog = File(cacheDir, "kcef.log")
+        kcefLog.deleteOnExit()
 
         scope.launch {
             try {
@@ -474,6 +493,8 @@ private object WebViewBootstrap {
                         installDir(installDir)
                         settings {
                             cachePath = cacheDir.absolutePath
+                            logFile = kcefLog.absolutePath
+                            // logSeverity = KCEFBuilder.Settings.LogSeverity.INFO
                         }
                         progress {
                             onInitialized {
@@ -491,6 +512,54 @@ private object WebViewBootstrap {
             } catch (t: Throwable) {
                 initError.value = t
             }
+        }
+
+        scope.launch {
+            tailKcefLog(kcefLog)
+        }
+    }
+
+    private suspend fun tailKcefLog(file: File) {
+        var retries = 0
+        while (!file.exists() && retries < 30) {
+            delay(1000)
+            retries++
+        }
+        if (!file.exists()) return
+
+        try {
+            val reader = RandomAccessFile(file, "r")
+            var filePointer = 0L
+
+            while (scope.isActive) {
+                val length = file.length()
+                if (length < filePointer) {
+                    filePointer = 0
+                    reader.seek(0)
+                }
+
+                if (length > filePointer) {
+                    reader.seek(filePointer)
+                    var line = reader.readLine()
+                    while (line != null) {
+                        if (line.isNotEmpty()) {
+                            val severity = when {
+                                line.contains(":ERROR:", ignoreCase = true) || line.contains(":FATAL:", ignoreCase = true) -> Severity.Error
+                                line.contains(":WARNING:", ignoreCase = true) -> Severity.Warn
+                                line.contains(":VERBOSE:", ignoreCase = true) -> Severity.Verbose
+                                else -> Severity.Info
+                            }
+                            Logger.log(severity, "KCEF", null, line)
+                        }
+                        line = reader.readLine()
+                    }
+                    filePointer = reader.filePointer
+                }
+                delay(1000)
+            }
+            reader.close()
+        } catch (e: Exception) {
+            Logger.withTag("KCEF").e(e) { "Error tailing log file" }
         }
     }
 }

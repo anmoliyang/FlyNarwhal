@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.4.2"
+val appVersion = "1.4.4"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -208,6 +208,10 @@ kotlin {
             implementation(libs.kermit)
             implementation(libs.kotlinx.io.core)
             implementation(libs.compottie)
+            implementation(libs.filekit.core)
+            implementation(libs.filekit.dialogs)
+            implementation(libs.filekit.dialogs.compose)
+            implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
         }

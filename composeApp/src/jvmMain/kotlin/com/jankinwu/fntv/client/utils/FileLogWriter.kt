@@ -14,7 +14,7 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
 class FileLogWriter(private val logDir: File) : LogWriter() {
-    private val logFile: File
+    val logFile: File
     private val writer: PrintWriter
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val timeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
@@ -67,11 +67,23 @@ class FileLogWriter(private val logDir: File) : LogWriter() {
             // For now, let's stick to the file created at initialization.
             
             val timestamp = LocalDateTime.now().format(timeFormatter)
-            val logMessage = "$timestamp [${severity.name}] [$tag] $message"
+            val maskedMessage = maskSensitiveInfo(message)
+            val logMessage = "$timestamp [${severity.name}] [$tag] $maskedMessage"
             writer.println(logMessage)
             throwable?.printStackTrace(writer)
             writer.flush()
         }
+    }
+
+    private fun maskSensitiveInfo(message: String): String {
+        var masked = message
+        // Mask password in JSON and toString()
+        masked = masked.replace(Regex("(\"password\"\\s*:\\s*\")[^\"]+(\")"), "$1******$2")
+        masked = masked.replace(Regex("(?i)(password\\s*=\\s*)[^,\\s)]+"), "$1******")
+        // Mask username in JSON and toString()
+        masked = masked.replace(Regex("(\"username\"\\s*:\\s*\")[^\"]+(\")"), "$1******$2")
+        masked = masked.replace(Regex("(?i)(username\\s*=\\s*)[^,\\s)]+"), "$1******")
+        return masked
     }
     
     fun close() {
