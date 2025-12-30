@@ -23,7 +23,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.LoginHistory
-import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.processor.NetworkMessageProcessor
@@ -52,6 +51,8 @@ import fntv_client_multiplatform.composeapp.generated.resources.login_background
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.consumeEach
 import org.jetbrains.compose.resources.painterResource
+import com.jankinwu.fntv.client.viewmodel.NasAuthViewModel
+import org.koin.compose.viewmodel.koinViewModel
 
 private val logger = Logger.withTag("FnConnectWebViewScreen")
 
@@ -72,7 +73,7 @@ fun NasLoginWebViewScreen(
 ) {
     val toastManager = rememberToastManager()
     val hazeState = rememberHazeState()
-    val fnOfficialApi = remember { FnOfficialApiImpl() }
+    val nasAuthViewModel: NasAuthViewModel = koinViewModel()
     val refreshState = LocalRefreshState.current
 
     val webViewInitialized = LocalWebViewInitialized.current
@@ -104,7 +105,7 @@ fun NasLoginWebViewScreen(
 
     val networkMessageProcessor = remember {
         NetworkMessageProcessor(
-            fnOfficialApi = fnOfficialApi,
+            nasAuthViewModel = nasAuthViewModel,
             toastManager = toastManager,
             webViewState = webViewState,
             navigator = navigator,

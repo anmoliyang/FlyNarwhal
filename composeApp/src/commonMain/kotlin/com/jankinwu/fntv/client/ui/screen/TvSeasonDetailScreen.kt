@@ -196,10 +196,19 @@ fun TvSeasonDetailScreen(
         }
     }
     LaunchedEffect(itemUiState) {
-        itemData = if (itemUiState is UiState.Success) {
-            (itemUiState as UiState.Success<ItemResponse>).data
-        } else {
-            null
+        when (itemUiState) {
+            is UiState.Success -> {
+                itemData = (itemUiState as UiState.Success<ItemResponse>).data
+            }
+
+            is UiState.Error -> {
+                logger.e("itemUiState error: ${(itemUiState as UiState.Error).message}")
+                itemData = null
+            }
+
+            else -> {
+                itemData = null
+            }
         }
     }
 
@@ -210,7 +219,7 @@ fun TvSeasonDetailScreen(
             }
 
             is UiState.Error -> {
-                logger.e("message: ${(playInfoUiState as UiState.Error).message}")
+                logger.e("playInfoUiState error: ${(playInfoUiState as UiState.Error).message}")
                 playInfoResponse = null
             }
 
@@ -229,7 +238,7 @@ fun TvSeasonDetailScreen(
             }
 
             is UiState.Error -> {
-                logger.e("message: ${(personListState as UiState.Error).message}")
+                logger.e("personListState error: ${(personListState as UiState.Error).message}")
                 castScrollRowItemList = emptyList()
             }
 
@@ -240,17 +249,44 @@ fun TvSeasonDetailScreen(
     }
 
     LaunchedEffect(iso6391State, iso6392State, iso3166State) {
-        val newIso6391Map = if (iso6391State is UiState.Success) {
-            (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+        val newIso6391Map = when (iso6391State) {
+            is UiState.Success -> {
+                (iso6391State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
 
-        val newIso6392Map = if (iso6392State is UiState.Success) {
-            (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+            is UiState.Error -> {
+                logger.e("iso6391State error: ${(iso6391State as UiState.Error).message}")
+                emptyMap()
+            }
 
-        val newIso3166Map = if (iso3166State is UiState.Success) {
-            (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
-        } else emptyMap()
+            else -> emptyMap()
+        }
+
+        val newIso6392Map = when (iso6392State) {
+            is UiState.Success -> {
+                (iso6392State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso6392State error: ${(iso6392State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
+        }
+
+        val newIso3166Map = when (iso3166State) {
+            is UiState.Success -> {
+                (iso3166State as UiState.Success<List<QueryTagResponse>>).data.associateBy { it.key }
+            }
+
+            is UiState.Error -> {
+                logger.e("iso3166State error: ${(iso3166State as UiState.Error).message}")
+                emptyMap()
+            }
+
+            else -> emptyMap()
+        }
 
         isoTagData = IsoTagData(
             iso6391Map = newIso6391Map,
@@ -313,6 +349,10 @@ fun TvEpisodeBody(
             is UiState.Success -> {
                 itemViewModel.loadData(guid)
                 episodeListViewModel.loadData(guid)
+            }
+
+            is UiState.Error -> {
+                logger.e("watchedUiState error: ${state.message}")
             }
 
             else -> {}
