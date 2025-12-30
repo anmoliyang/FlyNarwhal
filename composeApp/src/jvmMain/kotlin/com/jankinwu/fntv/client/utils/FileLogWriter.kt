@@ -67,11 +67,23 @@ class FileLogWriter(private val logDir: File) : LogWriter() {
             // For now, let's stick to the file created at initialization.
             
             val timestamp = LocalDateTime.now().format(timeFormatter)
-            val logMessage = "$timestamp [${severity.name}] [$tag] $message"
+            val maskedMessage = maskSensitiveInfo(message)
+            val logMessage = "$timestamp [${severity.name}] [$tag] $maskedMessage"
             writer.println(logMessage)
             throwable?.printStackTrace(writer)
             writer.flush()
         }
+    }
+
+    private fun maskSensitiveInfo(message: String): String {
+        var masked = message
+        // Mask password in JSON and toString()
+        masked = masked.replace(Regex("(\"password\"\\s*:\\s*\")[^\"]+(\")"), "$1******$2")
+        masked = masked.replace(Regex("(?i)(password\\s*=\\s*)[^,\\s)]+"), "$1******")
+        // Mask username in JSON and toString()
+        masked = masked.replace(Regex("(\"username\"\\s*:\\s*\")[^\"]+(\")"), "$1******$2")
+        masked = masked.replace(Regex("(?i)(username\\s*=\\s*)[^,\\s)]+"), "$1******")
+        return masked
     }
     
     fun close() {
