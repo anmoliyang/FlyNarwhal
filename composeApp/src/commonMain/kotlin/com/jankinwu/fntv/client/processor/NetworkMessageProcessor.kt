@@ -2,13 +2,12 @@ package com.jankinwu.fntv.client.processor
 
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.LoginHistory
-import com.jankinwu.fntv.client.data.model.request.AuthRequest
-import com.jankinwu.fntv.client.viewmodel.NasAuthViewModel
 import com.jankinwu.fntv.client.data.store.AccountDataCache
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
+import com.jankinwu.fntv.client.viewmodel.NasAuthViewModel
 import com.multiplatform.webview.cookie.Cookie
 import com.multiplatform.webview.web.WebViewNavigator
 import com.multiplatform.webview.web.WebViewState

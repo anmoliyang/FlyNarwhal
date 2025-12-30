@@ -18,10 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,8 +35,6 @@ import com.jankinwu.fntv.client.icons.ArrowUp
 import com.jankinwu.fntv.client.icons.Computer
 import com.jankinwu.fntv.client.icons.Nas
 import com.jankinwu.fntv.client.icons.Search
-import com.jankinwu.fntv.client.ui.providable.LocalFrameWindowScope
-import com.jankinwu.fntv.client.viewmodel.StreamListViewModel
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
@@ -46,14 +42,12 @@ import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.Text
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import org.koin.compose.viewmodel.koinViewModel
 
 @Preview
 @Composable
 fun AddSubtitleFlyout(
     mediaGuid: String,
     modifier: Modifier = Modifier,
-    guid: String,
     onAddNasSubtitleSelected: (String) -> Unit = {},
     onSearchSubtitleSelected: (String) -> Unit = {},
     onAddLocalSubtitleSelected: () -> Unit = {}

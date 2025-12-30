@@ -158,7 +158,6 @@ fun StreamSelector(
                                 AddSubtitleFlyout(
                                     mediaGuid,
                                     modifier = Modifier.hoverable(interactionSource),
-                                    guid,
                                     onAddNasSubtitleSelected = {
                                         showAddNasSubtitleDialog = true
                                     },
