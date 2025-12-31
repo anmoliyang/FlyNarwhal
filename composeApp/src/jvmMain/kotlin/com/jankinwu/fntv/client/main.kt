@@ -149,206 +149,174 @@ fun main() {
 
             CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
                 val isLoggedIn by LoginStateManager.isLoggedIn.collectAsState()
-            val navigator = rememberComponentNavigator(isLoggedIn)
-            val playerManager = remember { PlayerManager() }
-            val player = rememberMediampPlayer()
-            val userInfoViewModel: UserInfoViewModel = koinViewModel()
-            val userInfoState by userInfoViewModel.uiState.collectAsState()
+                val navigator = rememberComponentNavigator(isLoggedIn)
+                val playerManager = remember { PlayerManager() }
+                val player = rememberMediampPlayer()
+                val userInfoViewModel: UserInfoViewModel = koinViewModel()
+                val userInfoState by userInfoViewModel.uiState.collectAsState()
 
-            var fnConnectWindowRequest by remember { mutableStateOf<FnConnectWindowRequest?>(null) }
-            val (mainState, title, icon) = createWindowConfiguration()
-            val savedPlayerX = AppSettingsStore.playerWindowX
-            val savedPlayerY = AppSettingsStore.playerWindowY
-            val playerPosition = if (!savedPlayerX.isNaN() && !savedPlayerY.isNaN()) {
-                WindowPosition(savedPlayerX.dp, savedPlayerY.dp)
-            } else {
-                WindowPosition.Aligned(Alignment.Center)
-            }
-            val playerState = rememberWindowState(
-                position = playerPosition,
-                size = DpSize(AppSettingsStore.playerWindowWidth.dp, AppSettingsStore.playerWindowHeight.dp)
-            )
-
-            // 监听窗口位置变化并自动保存 (主窗口)
-            LaunchedEffect(mainState, playerManager.playerState.isVisible) {
-                snapshotFlow { mainState.position to mainState.size }
-                    .debounce(500)
-                    .collect { (position, size) ->
-                        // 只有当播放器不可见时才保存主窗口位置
-                        if (!playerManager.playerState.isVisible) {
-                            if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
-                                AppSettingsStore.windowWidth = size.width.value
-                                AppSettingsStore.windowHeight = size.height.value
-                                if (position is WindowPosition.Absolute) {
-                                    AppSettingsStore.windowX = position.x.value
-                                    AppSettingsStore.windowY = position.y.value
-                                }
-                            }
-                        }
-                    }
-            }
-
-            val desktopContext = remember(mainState) {
-                val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
-                val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
-                DesktopContext(mainState, dataDir, cacheDir, logDir, ExtraWindowProperties())
-            }
-
-            val logExporter = remember { DesktopLogExporter(logDir) }
-
-            val playerDesktopContext = remember(playerState) {
-                val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
-                val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
-                DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
-            }
-
-            val osName = System.getProperty("os.name").lowercase()
-            val isMacOS = osName.contains("mac")
-
-            if (isMacOS && !webViewInitialized && webViewInitError == null) {
-                Window(
-                    onCloseRequest = ::exitApplication,
-                    title = title,
-                    state = rememberWindowState(
-                        width = 400.dp,
-                        height = 200.dp,
-                        position = WindowPosition(Alignment.Center)
-                    ),
-                    undecorated = true,
-                    transparent = true,
-                    icon = icon
-                ) {
-                    SplashScreen(
-                        icon = icon,
-                        title = title,
-                        error = webViewInitError
+                var fnConnectWindowRequest by remember {
+                    mutableStateOf<FnConnectWindowRequest?>(
+                        null
                     )
                 }
-            } else {
-            // 主窗口
-            Window(
-                onCloseRequest = ::exitApplication,
-                state = mainState,
-                title = title,
-                icon = icon,
-                visible = !playerManager.playerState.isVisible
-            ) {
-                LaunchedEffect(Unit) {
-                    val baseWidth = 1280
-                    val baseHeight = 720
-                    window.minimumSize = Dimension(baseWidth, baseHeight)
+                val (mainState, title, icon) = createWindowConfiguration()
+                val savedPlayerX = AppSettingsStore.playerWindowX
+                val savedPlayerY = AppSettingsStore.playerWindowY
+                val playerPosition = if (!savedPlayerX.isNaN() && !savedPlayerY.isNaN()) {
+                    WindowPosition(savedPlayerX.dp, savedPlayerY.dp)
+                } else {
+                    WindowPosition.Aligned(Alignment.Center)
+                }
+                val playerState = rememberWindowState(
+                    position = playerPosition,
+                    size = DpSize(
+                        AppSettingsStore.playerWindowWidth.dp,
+                        AppSettingsStore.playerWindowHeight.dp
+                    )
+                )
+
+                // 监听窗口位置变化并自动保存 (主窗口)
+                LaunchedEffect(mainState, playerManager.playerState.isVisible) {
+                    snapshotFlow { mainState.position to mainState.size }
+                        .debounce(500)
+                        .collect { (position, size) ->
+                            // 只有当播放器不可见时才保存主窗口位置
+                            if (!playerManager.playerState.isVisible) {
+                                if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
+                                    AppSettingsStore.windowWidth = size.width.value
+                                    AppSettingsStore.windowHeight = size.height.value
+                                    if (position is WindowPosition.Absolute) {
+                                        AppSettingsStore.windowX = position.x.value
+                                        AppSettingsStore.windowY = position.y.value
+                                    }
+                                }
+                            }
+                        }
                 }
 
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner,
-                    LocalContext provides desktopContext,
-                    LocalLogExporter provides logExporter,
-                    LocalPlayerManager provides playerManager,
-                    LocalMediaPlayer provides player,
-                    LocalFrameWindowScope provides this@Window,
-                    LocalWindowState provides mainState,
-                    LocalWindowHandle provides window.windowHandle,
-                    LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
-                    LocalWebViewRestartRequired provides webViewRestartRequired,
-                    LocalWebViewInitError provides webViewInitError
-                ) {
-                    var errorDialogDismissed by remember { mutableStateOf(false) }
-                    if (webViewInitError != null && !errorDialogDismissed) {
-                        KcefInitErrorDialog(
-                            error = webViewInitError,
-                            onDismiss = { errorDialogDismissed = true }
+                val desktopContext = remember(mainState) {
+                    val dataDir =
+                        logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir =
+                        logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(mainState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                val logExporter = remember { DesktopLogExporter(logDir) }
+
+                val playerDesktopContext = remember(playerState) {
+                    val dataDir =
+                        logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
+                    val cacheDir =
+                        logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
+                    DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
+                }
+
+                val osName = System.getProperty("os.name").lowercase()
+                val isMacOS = osName.contains("mac")
+
+                if (isMacOS && !webViewInitialized && webViewInitError == null) {
+                    Window(
+                        onCloseRequest = ::exitApplication,
+                        title = title,
+                        state = rememberWindowState(
+                            width = 400.dp,
+                            height = 200.dp,
+                            position = WindowPosition(Alignment.Center)
+                        ),
+                        undecorated = true,
+                        transparent = true,
+                        icon = icon
+                    ) {
+                        SplashScreen(
+                            icon = icon,
+                            title = title,
+                            error = webViewInitError
                         )
                     }
-
-                    WindowFrame(
+                } else {
+                    // 主窗口
+                    Window(
                         onCloseRequest = ::exitApplication,
-                        icon = icon,
-                        title = title,
                         state = mainState,
-                        backButtonEnabled = navigator.canNavigateUp,
-                        backButtonClick = { navigator.navigateUp() },
-                        backButtonVisible = false
-                    ) { windowInset, contentInset ->
-                        // 使用LoginStateManagement来管理登录状态
-                        LaunchedEffect(isLoggedIn) {
-                            if (isLoggedIn) {
-                                userInfoViewModel.refresh()
-                            }
-                        }
-
-                        LaunchedEffect(userInfoState, isLoggedIn) {
-                            if (isLoggedIn && userInfoState is UiState.Error) {
-                                LoginStateManager.updateLoginStatus(false)
-                            }
-                        }
-
-                        // 只有在未登录状态下才显示登录界面
-                        if (!isLoggedIn) {
-                            LoginScreen(
-                                navigator = navigator,
-                                onOpenFnConnectWindow = { request ->
-                                    fnConnectWindowRequest = request
-                                }
-                            )
-                        } else {
-                            App(
-                                windowInset = windowInset,
-                                contentInset = contentInset,
-                                navigator = navigator,
-                                title = title,
-                                icon = icon
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 播放器窗口
-            if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
-                Window(
-                    onCloseRequest = {
-                        if (PlayingSettingsStore.playerIsFullscreen) {
-                            playerState.placement = WindowPlacement.Floating
-                            PlayingSettingsStore.playerIsFullscreen = false
-                        }
-                        playerManager.hidePlayer()
-                        player.stopPlayback()
-                    },
-                    state = playerState,
-                    title = playerManager.playerState.mediaTitle,
-                    icon = icon,
-                    undecorated = false
-                ) {
-                    val playState by player.playbackState.collectAsState()
-                    val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
-
-                    DisposableEffect(shouldBlockDisplaySleep) {
-                        WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
-                        onDispose {
-                            WindowsDisplaySleepBlocker.setEnabled(false)
-                        }
-                    }
-
-                    LaunchedEffect(Unit) {
-                        val baseWidth = 600
-                        val baseHeight = 400
-                        window.minimumSize = Dimension(baseWidth, baseHeight)
-                    }
-
-                    CompositionLocalProvider(
-                        LocalViewModelStoreOwner provides viewModelStoreOwner,
-                        LocalContext provides playerDesktopContext,
-                        LocalLogExporter provides logExporter,
-                        LocalPlayerManager provides playerManager,
-                        LocalMediaPlayer provides player,
-                        LocalFrameWindowScope provides this@Window,
-                        LocalWindowState provides playerState,
-                        LocalWindowHandle provides window.windowHandle,
-                        LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
-                        LocalWebViewRestartRequired provides webViewRestartRequired,
-                        LocalWebViewInitError provides webViewInitError
+                        title = title,
+                        icon = icon,
+                        visible = !playerManager.playerState.isVisible
                     ) {
-                        WindowFrame(
+                        LaunchedEffect(Unit) {
+                            val baseWidth = 1280
+                            val baseHeight = 720
+                            window.minimumSize = Dimension(baseWidth, baseHeight)
+                        }
+
+                        CompositionLocalProvider(
+                            LocalViewModelStoreOwner provides viewModelStoreOwner,
+                            LocalContext provides desktopContext,
+                            LocalLogExporter provides logExporter,
+                            LocalPlayerManager provides playerManager,
+                            LocalMediaPlayer provides player,
+                            LocalFrameWindowScope provides this@Window,
+                            LocalWindowState provides mainState,
+                            LocalWindowHandle provides window.windowHandle,
+                            LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                            LocalWebViewRestartRequired provides webViewRestartRequired,
+                            LocalWebViewInitError provides webViewInitError
+                        ) {
+                            var errorDialogDismissed by remember { mutableStateOf(false) }
+                            if (webViewInitError != null && !errorDialogDismissed) {
+                                KcefInitErrorDialog(
+                                    error = webViewInitError,
+                                    onDismiss = { errorDialogDismissed = true }
+                                )
+                            }
+
+                            WindowFrame(
+                                onCloseRequest = ::exitApplication,
+                                icon = icon,
+                                title = title,
+                                state = mainState,
+                                backButtonEnabled = navigator.canNavigateUp,
+                                backButtonClick = { navigator.navigateUp() },
+                                backButtonVisible = false
+                            ) { windowInset, contentInset ->
+                                // 使用LoginStateManagement来管理登录状态
+                                LaunchedEffect(isLoggedIn) {
+                                    if (isLoggedIn) {
+                                        userInfoViewModel.refresh()
+                                    }
+                                }
+
+                                LaunchedEffect(userInfoState, isLoggedIn) {
+                                    if (isLoggedIn && userInfoState is UiState.Error) {
+                                        LoginStateManager.updateLoginStatus(false)
+                                    }
+                                }
+
+                                // 只有在未登录状态下才显示登录界面
+                                if (!isLoggedIn) {
+                                    LoginScreen(
+                                        navigator = navigator,
+                                        onOpenFnConnectWindow = { request ->
+                                            fnConnectWindowRequest = request
+                                        }
+                                    )
+                                } else {
+                                    App(
+                                        windowInset = windowInset,
+                                        contentInset = contentInset,
+                                        navigator = navigator,
+                                        title = title,
+                                        icon = icon
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 播放器窗口
+                    if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
+                        Window(
                             onCloseRequest = {
                                 if (PlayingSettingsStore.playerIsFullscreen) {
                                     playerState.placement = WindowPlacement.Floating
@@ -357,152 +325,215 @@ fun main() {
                                 playerManager.hidePlayer()
                                 player.stopPlayback()
                             },
-                            icon = icon,
-                            title = playerManager.playerState.mediaTitle,
                             state = playerState,
-                            backButtonVisible = false,
-                            backButtonEnabled = false,
-                            backButtonClick = {
-                                if (PlayingSettingsStore.playerIsFullscreen) {
-                                    playerState.placement = WindowPlacement.Floating
-                                    PlayingSettingsStore.playerIsFullscreen = false
-                                }
-                                playerManager.hidePlayer()
-                                player.stopPlayback()
-                            }
-                        ) { _, _ ->
-                            PlayerOverlay(
-                                mediaTitle = playerManager.playerState.mediaTitle,
-                                subhead = playerManager.playerState.subhead,
-                                isEpisode = playerManager.playerState.isEpisode,
-                                onBack = {
-                                    if (PlayingSettingsStore.playerIsFullscreen) {
-                                        playerState.placement = WindowPlacement.Floating
-                                        PlayingSettingsStore.playerIsFullscreen = false
-                                    }
-                                    playerManager.hidePlayer()
-                                    // 停止播放
-                                    player.stopPlayback()
-                                },
-                                mediaPlayer = player,
-                                draggableArea = { content -> WindowDraggableArea(content = content) }
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 小窗模式
-            if (playerManager.isPipMode) {
-                // 如果处于全屏模式，退出全屏
-                if (PlayingSettingsStore.playerIsFullscreen) {
-                    LaunchedEffect(Unit) {
-                        playerState.placement = WindowPlacement.Floating
-                        PlayingSettingsStore.playerIsFullscreen = false
-                    }
-                }
-
-                CompositionLocalProvider(
-                    LocalViewModelStoreOwner provides viewModelStoreOwner,
-                    LocalContext provides desktopContext, // PIP use main context?
-                    LocalPlayerManager provides playerManager,
-                    LocalMediaPlayer provides player,
-                    LocalWindowState provides mainState, // PIP might not need this, but providing just in case
-                    LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
-                    LocalWebViewRestartRequired provides webViewRestartRequired,
-                    LocalWebViewInitError provides webViewInitError
-                ) {
-                    PipPlayerWindow(
-                        onClose = {
-                            player.stopPlayback()
-                            playerManager.hidePlayer()
-                            playerManager.isPipMode = false
-                        },
-                        onExitPip = {
-                            playerManager.isPipMode = false
-                        }
-                    )
-                }
-            }
-
-            val request = fnConnectWindowRequest
-            if (request != null) {
-                val fnConnectWindowState = rememberWindowState(
-                    size = DpSize(980.dp, 720.dp),
-                    position = WindowPosition.Aligned(Alignment.Center)
-                )
-
-                Window(
-                    onCloseRequest = { fnConnectWindowRequest = null },
-                    state = fnConnectWindowState,
-                    title = "使用 NAS 登录",
-                    icon = icon
-                ) {
-                    val fnConnectContext = remember(fnConnectWindowState) {
-                        val dataDir = logDir.parentFile.resolve("data").apply { if (!exists()) mkdirs() }
-                        val cacheDir = logDir.parentFile.resolve("cache").apply { if (!exists()) mkdirs() }
-                        DesktopContext(fnConnectWindowState, dataDir, cacheDir, logDir, ExtraWindowProperties())
-                    }
-
-                    CompositionLocalProvider(
-                        LocalViewModelStoreOwner provides viewModelStoreOwner,
-                        LocalContext provides fnConnectContext,
-                        LocalLogExporter provides logExporter,
-                        LocalPlayerManager provides remember { PlayerManager() },
-                        LocalFrameWindowScope provides this@Window,
-                        LocalWindowState provides fnConnectWindowState,
-                        LocalWindowHandle provides window.windowHandle,
-                        LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
-                        LocalWebViewRestartRequired provides webViewRestartRequired,
-                        LocalWebViewInitError provides webViewInitError
-                    ) {
-                        WindowFrame(
-                            onCloseRequest = { fnConnectWindowRequest = null },
+                            title = playerManager.playerState.mediaTitle,
                             icon = icon,
-                            title = "使用 NAS 登录",
-                            state = fnConnectWindowState,
-                            backButtonVisible = false
-                        ) { windowInset, contentInset ->
-                            NasLoginWebViewScreen(
-                                initialUrl = request.initialUrl,
-                                fnId = request.fnId,
-                                onBack = { fnConnectWindowRequest = null },
-                                onLoginSuccess = { history ->
-                                    val preferencesManager = PreferencesManager.getInstance()
-                                    val current = preferencesManager.loadLoginHistory()
-                                    val updated = updateLoginHistory(current, history)
-                                    preferencesManager.saveLoginHistory(updated)
-                                    fnConnectWindowRequest = null
-                                },
-                                autoLoginUsername = request.autoLoginUsername,
-                                autoLoginPassword = request.autoLoginPassword,
-                                allowAutoLogin = request.allowAutoLogin,
-                                onBaseUrlDetected = if (request.onBaseUrlDetected != null) {
-                                    {
-                                        request.onBaseUrlDetected.invoke(it)
-                                        fnConnectWindowRequest = null
+                            undecorated = false
+                        ) {
+                            val playState by player.playbackState.collectAsState()
+                            val shouldBlockDisplaySleep = playState == PlaybackState.PLAYING
+
+                            DisposableEffect(shouldBlockDisplaySleep) {
+                                WindowsDisplaySleepBlocker.setEnabled(shouldBlockDisplaySleep)
+                                onDispose {
+                                    WindowsDisplaySleepBlocker.setEnabled(false)
+                                }
+                            }
+
+                            LaunchedEffect(Unit) {
+                                val baseWidth = 600
+                                val baseHeight = 400
+                                window.minimumSize = Dimension(baseWidth, baseHeight)
+                            }
+
+                            CompositionLocalProvider(
+                                LocalViewModelStoreOwner provides viewModelStoreOwner,
+                                LocalContext provides playerDesktopContext,
+                                LocalLogExporter provides logExporter,
+                                LocalPlayerManager provides playerManager,
+                                LocalMediaPlayer provides player,
+                                LocalFrameWindowScope provides this@Window,
+                                LocalWindowState provides playerState,
+                                LocalWindowHandle provides window.windowHandle,
+                                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                                LocalWebViewRestartRequired provides webViewRestartRequired,
+                                LocalWebViewInitError provides webViewInitError
+                            ) {
+                                WindowFrame(
+                                    onCloseRequest = {
+                                        if (PlayingSettingsStore.playerIsFullscreen) {
+                                            playerState.placement = WindowPlacement.Floating
+                                            PlayingSettingsStore.playerIsFullscreen = false
+                                        }
+                                        playerManager.hidePlayer()
+                                        player.stopPlayback()
+                                    },
+                                    icon = icon,
+                                    title = playerManager.playerState.mediaTitle,
+                                    state = playerState,
+                                    backButtonVisible = false,
+                                    backButtonEnabled = false,
+                                    backButtonClick = {
+                                        if (PlayingSettingsStore.playerIsFullscreen) {
+                                            playerState.placement = WindowPlacement.Floating
+                                            PlayingSettingsStore.playerIsFullscreen = false
+                                        }
+                                        playerManager.hidePlayer()
+                                        player.stopPlayback()
                                     }
-                                } else null,
-                                windowInset = windowInset,
-                                contentInset = contentInset
+                                ) { _, _ ->
+                                    PlayerOverlay(
+                                        mediaTitle = playerManager.playerState.mediaTitle,
+                                        subhead = playerManager.playerState.subhead,
+                                        isEpisode = playerManager.playerState.isEpisode,
+                                        onBack = {
+                                            if (PlayingSettingsStore.playerIsFullscreen) {
+                                                playerState.placement = WindowPlacement.Floating
+                                                PlayingSettingsStore.playerIsFullscreen = false
+                                            }
+                                            playerManager.hidePlayer()
+                                            // 停止播放
+                                            player.stopPlayback()
+                                        },
+                                        mediaPlayer = player,
+                                        draggableArea = { content -> WindowDraggableArea(content = content) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 小窗模式
+                    if (playerManager.isPipMode) {
+                        // 如果处于全屏模式，退出全屏
+                        if (PlayingSettingsStore.playerIsFullscreen) {
+                            LaunchedEffect(Unit) {
+                                playerState.placement = WindowPlacement.Floating
+                                PlayingSettingsStore.playerIsFullscreen = false
+                            }
+                        }
+
+                        CompositionLocalProvider(
+                            LocalViewModelStoreOwner provides viewModelStoreOwner,
+                            LocalContext provides desktopContext, // PIP use main context?
+                            LocalPlayerManager provides playerManager,
+                            LocalMediaPlayer provides player,
+                            LocalWindowState provides mainState, // PIP might not need this, but providing just in case
+                            LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                            LocalWebViewRestartRequired provides webViewRestartRequired,
+                            LocalWebViewInitError provides webViewInitError
+                        ) {
+                            PipPlayerWindow(
+                                onClose = {
+                                    player.stopPlayback()
+                                    playerManager.hidePlayer()
+                                    playerManager.isPipMode = false
+                                },
+                                onExitPip = {
+                                    playerManager.isPipMode = false
+                                }
                             )
                         }
                     }
+
+                    val request = fnConnectWindowRequest
+                    if (request != null) {
+                        val fnConnectWindowState = rememberWindowState(
+                            size = DpSize(980.dp, 720.dp),
+                            position = WindowPosition.Aligned(Alignment.Center)
+                        )
+
+                        Window(
+                            onCloseRequest = { fnConnectWindowRequest = null },
+                            state = fnConnectWindowState,
+                            title = "使用 NAS 登录",
+                            icon = icon
+                        ) {
+                            val fnConnectContext = remember(fnConnectWindowState) {
+                                val dataDir = logDir.parentFile.resolve("data")
+                                    .apply { if (!exists()) mkdirs() }
+                                val cacheDir = logDir.parentFile.resolve("cache")
+                                    .apply { if (!exists()) mkdirs() }
+                                DesktopContext(
+                                    fnConnectWindowState,
+                                    dataDir,
+                                    cacheDir,
+                                    logDir,
+                                    ExtraWindowProperties()
+                                )
+                            }
+
+                            CompositionLocalProvider(
+                                LocalViewModelStoreOwner provides viewModelStoreOwner,
+                                LocalContext provides fnConnectContext,
+                                LocalLogExporter provides logExporter,
+                                LocalPlayerManager provides remember { PlayerManager() },
+                                LocalFrameWindowScope provides this@Window,
+                                LocalWindowState provides fnConnectWindowState,
+                                LocalWindowHandle provides window.windowHandle,
+                                LocalWebViewInitialized provides (webViewInitialized && webViewInitError == null),
+                                LocalWebViewRestartRequired provides webViewRestartRequired,
+                                LocalWebViewInitError provides webViewInitError
+                            ) {
+                                var errorDialogDismissed by remember { mutableStateOf(false) }
+                                if (webViewInitError != null && !errorDialogDismissed) {
+                                    KcefInitErrorDialog(
+                                        error = webViewInitError,
+                                        onDismiss = { errorDialogDismissed = true }
+                                    )
+                                }
+
+                                WindowFrame(
+                                    onCloseRequest = { fnConnectWindowRequest = null },
+                                    icon = icon,
+                                    title = "使用 NAS 登录",
+                                    state = fnConnectWindowState,
+                                    backButtonVisible = false
+                                ) { windowInset, contentInset ->
+                                    NasLoginWebViewScreen(
+                                        initialUrl = request.initialUrl,
+                                        fnId = request.fnId,
+                                        onBack = { fnConnectWindowRequest = null },
+                                        onLoginSuccess = { history ->
+                                            val preferencesManager =
+                                                PreferencesManager.getInstance()
+                                            val current = preferencesManager.loadLoginHistory()
+                                            val updated = updateLoginHistory(current, history)
+                                            preferencesManager.saveLoginHistory(updated)
+                                            fnConnectWindowRequest = null
+                                        },
+                                        autoLoginUsername = request.autoLoginUsername,
+                                        autoLoginPassword = request.autoLoginPassword,
+                                        allowAutoLogin = request.allowAutoLogin,
+                                        onBaseUrlDetected = if (request.onBaseUrlDetected != null) {
+                                            {
+                                                request.onBaseUrlDetected.invoke(it)
+                                                fnConnectWindowRequest = null
+                                            }
+                                        } else null,
+                                        windowInset = windowInset,
+                                        contentInset = contentInset
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
-            }
-            }
             }
         }
     }
 }
 
 
-
 private fun kcefBaseDir(): File {
     val platform = currentPlatformDesktop()
     return when (platform) {
         is Platform.Linux -> File(System.getProperty("user.home"), ".local/share/fly-narwhal")
-        is Platform.MacOS -> File(System.getProperty("user.home"), "Library/Application Support/fly-narwhal")
+        is Platform.MacOS -> File(
+            System.getProperty("user.home"),
+            "Library/Application Support/fly-narwhal"
+        )
+
         is Platform.Windows -> {
             val localAppData = System.getenv("LOCALAPPDATA")?.takeIf { it.isNotBlank() }
             File(localAppData ?: System.getProperty("user.home"), "FlyNarwhal")
@@ -542,7 +573,7 @@ private fun cleanupOldKcefDirs(baseDir: File) {
 private fun initializeLoggingDirectory(): File {
     val userDirStr = System.getProperty("user.dir")
     val userDirFile = File(userDirStr)
-    
+
     // Check if we are running in development mode (via Gradle/IDE)
     // We assume dev mode if build.gradle.kts exists in user.dir or user.dir/composeApp
     val isDev = System.getProperty("compose.application.resources.dir") == null ||
@@ -563,10 +594,12 @@ private fun initializeLoggingDirectory(): File {
                 val userHome = System.getProperty("user.home")
                 File(userHome, ".local/share/fly-narwhal/logs")
             }
+
             is Platform.MacOS -> {
                 val userHome = System.getProperty("user.home")
                 File(userHome, "Library/Logs/fly-narwhal")
             }
+
             is Platform.Windows -> {
                 val appDir = ExecutableDirectoryDetector.INSTANCE.getExecutableDirectory()
                 File(appDir, "logs")
@@ -577,7 +610,7 @@ private fun initializeLoggingDirectory(): File {
     if (!logDir.exists()) {
         logDir.mkdirs()
     }
-    
+
     return logDir
 }
 
