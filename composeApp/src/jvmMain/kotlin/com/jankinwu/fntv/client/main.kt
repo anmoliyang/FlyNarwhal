@@ -104,16 +104,17 @@ private object WindowsDisplaySleepBlocker {
 fun main() {
     val logDir = initializeLoggingDirectory()
     Logger.setLogWriters(ConsoleLogWriter(), FileLogWriter(logDir))
-    Logger.withTag("main").i { "Application started. Logs directory: ${logDir.absolutePath}" }
+    val logger = Logger.withTag("main")
+    logger.i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
     // Cleanup old KCEF directories
     val baseDir = kcefBaseDir()
     val installDir = File(baseDir, "kcef-bundle-${BuildConfig.VERSION_NAME}")
     val cacheDir = File(baseDir, "kcef-cache-${BuildConfig.VERSION_NAME}")
     cleanupOldKcefDirs(baseDir)
-    Logger.withTag("main").i { "KCEF base directory: ${baseDir.absolutePath}" }
-    Logger.withTag("main").i { "KCEF install directory: ${installDir.absolutePath}" }
-    Logger.withTag("main").i { "KCEF cache directory: ${cacheDir.absolutePath}" }
+    logger.i { "KCEF base directory: ${baseDir.absolutePath}" }
+    logger.i { "KCEF install directory: ${installDir.absolutePath}" }
+    logger.i { "KCEF cache directory: ${cacheDir.absolutePath}" }
 
     application {
         LaunchedEffect(Unit) {
@@ -186,15 +187,12 @@ fun main() {
                     snapshotFlow { mainState.position to mainState.size }
                         .debounce(500)
                         .collect { (position, size) ->
-                            // 只有当播放器不可见时才保存主窗口位置
-                            if (!playerManager.playerState.isVisible) {
-                                if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
-                                    AppSettingsStore.windowWidth = size.width.value
-                                    AppSettingsStore.windowHeight = size.height.value
-                                    if (position is WindowPosition.Absolute) {
-                                        AppSettingsStore.windowX = position.x.value
-                                        AppSettingsStore.windowY = position.y.value
-                                    }
+                            if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
+                                AppSettingsStore.windowWidth = size.width.value
+                                AppSettingsStore.windowHeight = size.height.value
+                                if (position is WindowPosition.Absolute) {
+                                    AppSettingsStore.windowX = position.x.value
+                                    AppSettingsStore.windowY = position.y.value
                                 }
                             }
                         }
