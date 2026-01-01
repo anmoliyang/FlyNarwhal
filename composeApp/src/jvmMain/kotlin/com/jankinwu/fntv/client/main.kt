@@ -26,6 +26,7 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.network.apiModule
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import com.jankinwu.fntv.client.jna.windows.User32Extend
 import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.manager.ProxyManager
@@ -61,7 +62,11 @@ import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
 import com.jankinwu.fntv.client.viewmodel.viewModelModule
 import com.jankinwu.fntv.client.window.WindowFrame
+import com.jankinwu.fntv.client.window.findSkiaLayer
+import com.sun.jna.Pointer
 import com.sun.jna.platform.win32.Kernel32
+import com.sun.jna.platform.win32.WinDef.HWND
+import com.sun.jna.platform.win32.WinUser
 import dev.datlag.kcef.KCEF
 import flynarwhal.composeapp.generated.resources.Res
 import flynarwhal.composeapp.generated.resources.icon
@@ -73,6 +78,8 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.openani.mediamp.PlaybackState
 import org.openani.mediamp.compose.rememberMediampPlayer
 import java.awt.Dimension
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.io.File
 
 private object WindowsDisplaySleepBlocker {
@@ -190,10 +197,13 @@ fun main() {
                             if (mainState.placement != WindowPlacement.Fullscreen && mainState.placement != WindowPlacement.Maximized) {
                                 AppSettingsStore.windowWidth = size.width.value
                                 AppSettingsStore.windowHeight = size.height.value
+                                AppSettingsStore.isWindowMaximized = false
                                 if (position is WindowPosition.Absolute) {
                                     AppSettingsStore.windowX = position.x.value
                                     AppSettingsStore.windowY = position.y.value
                                 }
+                            }else if (mainState.placement == WindowPlacement.Maximized) {
+                                AppSettingsStore.isWindowMaximized = true
                             }
                         }
                 }
@@ -247,6 +257,46 @@ fun main() {
                         icon = icon,
                         visible = !playerManager.playerState.isVisible
                     ) {
+                        val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
+                        DisposableEffect(shouldStartMaximized) {
+                            if (!shouldStartMaximized) return@DisposableEffect onDispose {}
+
+                            var applied = false
+                            val listener = object : ComponentAdapter() {
+                                override fun componentShown(e: ComponentEvent) {
+                                    if (applied) return
+                                    applied = true
+
+                                    if (currentPlatform().isWindows()) {
+                                        val hWnd = HWND(Pointer(window.windowHandle))
+                                        User32Extend.instance?.ShowWindow(hWnd, WinUser.SW_MAXIMIZE)
+                                        User32Extend.instance?.RedrawWindow(
+                                            hWnd,
+                                            null,
+                                            null,
+                                            WinUser.RDW_INVALIDATE or
+                                                WinUser.RDW_UPDATENOW or
+                                                WinUser.RDW_FRAME or
+                                                WinUser.RDW_ALLCHILDREN or
+                                                WinUser.RDW_ERASE
+                                        )
+                                    }
+
+                                    mainState.placement = WindowPlacement.Maximized
+                                    window.findSkiaLayer()?.apply {
+                                        invalidate()
+                                        revalidate()
+                                        repaint()
+                                    }
+                                    window.invalidate()
+                                    window.validate()
+                                    window.repaint()
+                                }
+                            }
+
+                            window.addComponentListener(listener)
+                            onDispose { window.removeComponentListener(listener) }
+                        }
                         LaunchedEffect(Unit) {
                             val baseWidth = 1280
                             val baseHeight = 720
@@ -641,7 +691,7 @@ private fun createWindowConfiguration(): Triple<WindowState, String, Painter> {
     }
     val state = rememberWindowState(
         position = position,
-//        size = DpSize.Unspecified
+        placement = WindowPlacement.Floating,
         size = DpSize(AppSettingsStore.windowWidth.dp, AppSettingsStore.windowHeight.dp)
     )
     val title = "飞鲸影视"

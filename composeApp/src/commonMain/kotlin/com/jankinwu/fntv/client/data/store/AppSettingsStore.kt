@@ -51,6 +51,10 @@ object AppSettingsStore {
         get() = settings.getFloat("window_y", Float.NaN)
         set(value) = settings.set("window_y", value)
 
+    var isWindowMaximized:  Boolean
+        get() = settings.getBoolean("is_window_maximized", false)
+        set(value) = settings.set("is_window_maximized", value)
+
     var playerWindowWidth: Float
         get() = settings.getFloat("player_window_width", 1280f)
         set(value) = settings.set("player_window_width", value)
