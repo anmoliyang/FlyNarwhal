@@ -116,7 +116,6 @@ import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.AddNasSubtitleDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleSearchDialog
-import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.player.EpisodeSelectionFlyout
 import com.jankinwu.fntv.client.ui.component.player.FullScreenControl
 import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
@@ -209,6 +208,7 @@ data class PlayerState(
 )
 
 class PlayerManager {
+    val toastManager: ToastManager = ToastManager()
     var playerState: PlayerState by mutableStateOf(PlayerState())
     var keyFocusRequestSerial: Int by mutableIntStateOf(0)
     var isPipMode: Boolean by mutableStateOf(false)
@@ -277,8 +277,8 @@ fun PlayerOverlay(
 ) {
     // 控制UI可见性的状态
     var uiVisible by remember { mutableStateOf(true) }
-    val toastManager = rememberToastManager()
     val playerManager = LocalPlayerManager.current
+    val toastManager = playerManager.toastManager
     LaunchedEffect(uiVisible) {
         playerManager.setUiVisible(uiVisible)
     }
@@ -710,7 +710,7 @@ fun PlayerOverlay(
             { targetTrimId: String? ->
                 val cache = playerViewModel.playingInfoCache.value
                 if (cache != null) {
-                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                         try {
                             val userInfoState = userInfoViewModel.uiState.value
                             val userInfo = when (userInfoState) {
@@ -1228,90 +1228,35 @@ fun PlayerOverlay(
             }
 
             if (showSkipOutroPrompt) {
-                Box(
+                SkipOutroPrompt(
+                    countdown = skipOutroCountdown,
+                    onCancel = {
+                        skipOutroCancelled = true
+                        showSkipOutroPrompt = false
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
                         .padding(bottom = 120.dp, start = 32.dp)
-                ) {
-                    androidx.compose.material3.Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
-                        contentColor = Color.White
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${skipOutroCountdown}s 后将自动跳过片尾并播放下集",
-                                fontSize = 14.sp
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "取消跳过",
-                                color = Color(0xFF3B82F6),
-                                fontSize = 14.sp,
-                                modifier = Modifier.clickable {
-                                    skipOutroCancelled = true
-                                    showSkipOutroPrompt = false
-                                }
-                            )
-                        }
-                    }
-                }
+                )
             }
 
             if (showEndScreen) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.95f))
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
-                    contentAlignment = Alignment.Center
-                ) {
-                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                         Text(
-                             text = "${playingInfoCache?.item?.episodeNumber?.toString()?.padStart(2, '0')}. ${playingInfoCache?.item?.title ?: ""}",
-                             color = Color.White,
-                             fontSize = 18.sp,
-                             fontWeight = FontWeight.Bold,
-                             modifier = Modifier.padding(bottom = 8.dp)
-                         )
-                         
-                         Text(
-                             text = "${playingInfoCache?.item?.runtime} 分钟",
-                             color = Color.Gray,
-                             fontSize = 14.sp,
-                             modifier = Modifier.padding(bottom = 24.dp)
-                         )
-                         
-                         Row {
-                             androidx.compose.material3.Button(
-                                 onClick = {
-                                     showEndScreen = false
-                                     mediaPlayer.seekTo(0)
-                                     mediaPlayer.resume()
-                                 },
-                                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
-                             ) {
-                                 Icon(Icons.Default.Refresh, null, tint = Color.White)
-                                 Spacer(modifier = Modifier.width(8.dp))
-                                 Text("重新播放", color = Color.White)
-                             }
-                             Spacer(modifier = Modifier.width(16.dp))
-                             androidx.compose.material3.Button(
-                                 onClick = {
-                                     onBack()
-                                 },
-                                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
-                             ) {
-                                 Icon(Icons.Default.Home, null, tint = Color.White)
-                                 Spacer(modifier = Modifier.width(8.dp))
-                                 Text("回到首页", color = Color.White)
-                             }
-                         }
-                     }
-                }
+                EndScreen(
+                    playingInfoCache = playingInfoCache,
+                    mediaPlayer = mediaPlayer,
+                    onBack = onBack,
+                    onReplay = {
+                        showEndScreen = false
+                        val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
+                        if (skipOpening > 0) {
+                            mediaPlayer.seekTo(skipOpening * 1000L)
+                            toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+                        } else {
+                            mediaPlayer.seekTo(0)
+                        }
+                        mediaPlayer.resume()
+                    }
+                )
             }
 
             if (windowState.placement != WindowPlacement.Fullscreen) {
@@ -1582,6 +1527,95 @@ fun buildEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
         }
     }
     return annotatedString
+}
+
+@Composable
+private fun SkipOutroPrompt(
+    countdown: Int,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${countdown}s 后将自动跳过片尾并播放下集",
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "取消跳过",
+                    color = Color(0xFF3B82F6),
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        onCancel()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EndScreen(
+    playingInfoCache: PlayingInfoCache?,
+    mediaPlayer: MediampPlayer,
+    onBack: () -> Unit,
+    onReplay: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.95f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${playingInfoCache?.item?.episodeNumber?.toString()?.padStart(2, '0')}. ${playingInfoCache?.item?.title ?: ""}",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            Text(
+                text = "${playingInfoCache?.item?.runtime} 分钟",
+                color = Color.Gray,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+
+            Row {
+                androidx.compose.material3.Button(
+                    onClick = onReplay,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                ) {
+                    Icon(Icons.Default.Refresh, null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("重新播放", color = Color.White)
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                androidx.compose.material3.Button(
+                    onClick = onBack,
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                ) {
+                    Icon(Icons.Default.Home, null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("回到首页", color = Color.White)
+                }
+            }
+        }
+    }
 }
 
 fun buildMacOsEpisodeTitle(mediaTitle: String, subhead: String): AnnotatedString {
@@ -2113,7 +2147,7 @@ private suspend fun playMedia(
             isM3u8
         )
         if (isSkippedIntro) {
-            toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+            playerManager.toastManager.showToast("已为您自动跳过片头", ToastType.Info)
         }
         // 调用playRecord接口
         callPlayRecord(
