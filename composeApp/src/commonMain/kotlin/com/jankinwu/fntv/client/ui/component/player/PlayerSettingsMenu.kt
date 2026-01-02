@@ -3,20 +3,22 @@ package com.jankinwu.fntv.client.ui.component.player
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -38,13 +40,16 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -57,8 +62,8 @@ import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.response.AudioStream
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
-import com.jankinwu.fntv.client.ui.component.common.AnimatedScrollbarLazyColumn
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
@@ -67,6 +72,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
+import kotlin.math.roundToInt
 
 private val FlyoutBackgroundColor = Color.Black.copy(alpha = 0.9f)
 private val FlyoutBorderColor = Color.Gray.copy(alpha = 0.5f)
@@ -85,6 +91,9 @@ fun PlayerSettingsMenu(
     isoTagData: IsoTagData?,
     onAudioSelected: (AudioStream) -> Unit,
     onWindowAspectRatioChanged: (String) -> Unit,
+//    currentVideoAspectRatio: AspectRatioMode?,
+//    onVideoAspectRatioChanged: (AspectRatioMode) -> Unit,
+    onSkipConfigChanged: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
     onHoverStateChanged: ((Boolean) -> Unit)? = null
 ) {
@@ -97,7 +106,7 @@ fun PlayerSettingsMenu(
     }
 
     var isPlaying by remember { mutableStateOf(false) }
-    
+
     var isExpanded by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     var hideJob by remember { mutableStateOf<Job?>(null) }
@@ -136,7 +145,6 @@ fun PlayerSettingsMenu(
             }
             .onPointerEvent(PointerEventType.Exit) {
                 isButtonHovered = false
-                // isPlaying = false // Keep playing or stop? Original code stopped at end.
                 popupHovered = false
                 onHoverStateChanged?.invoke(false)
                 hideFlyoutWithDelay()
@@ -172,11 +180,11 @@ fun PlayerSettingsMenu(
 
         if (showPopup) {
             Popup(
-                offset = IntOffset(0, -70), // Adjust based on position (similar to QualityControlFlyout)
+                offset = IntOffset(0, -70),
                 alignment = Alignment.BottomCenter,
                 properties = PopupProperties(
                     clippingEnabled = false,
-                    focusable = false // Important for hover behavior
+                    focusable = false
                 ),
                 onDismissRequest = {
                     if (!isButtonHovered && !popupHovered) {
@@ -195,7 +203,6 @@ fun PlayerSettingsMenu(
                         }
                         .onPointerEvent(PointerEventType.Exit) {
                             popupHovered = false
-                            // onHoverStateChanged?.invoke(false) // Wait for hide logic
                             hideFlyoutWithDelay()
                         }
                 ) {
@@ -227,7 +234,17 @@ fun PlayerSettingsMenu(
                                 if (!isButtonHovered) {
                                     onHoverStateChanged?.invoke(false)
                                 }
-                            }
+                            },
+                            // currentVideoAspectRatio = currentVideoAspectRatio,
+                            // onVideoAspectRatioChanged = {
+                            //     onVideoAspectRatioChanged(it)
+                            //     isExpanded = false
+                            //     currentScreen = "Main"
+                            //     if (!isButtonHovered) {
+                            //         onHoverStateChanged?.invoke(false)
+                            //     }
+                            // },
+                            onSkipConfigChanged = onSkipConfigChanged
                         )
                     }
                 }
@@ -281,7 +298,10 @@ fun SettingsFlyoutContent(
     currentScreen: String,
     onNavigate: (String) -> Unit,
     onAudioSelected: (AudioStream) -> Unit,
-    onWindowAspectRatioChanged: (String) -> Unit
+    onWindowAspectRatioChanged: (String) -> Unit,
+//    currentVideoAspectRatio: AspectRatioMode?,
+//    onVideoAspectRatioChanged: (AspectRatioMode) -> Unit,
+    onSkipConfigChanged: (Int, Int) -> Unit
 ) {
     Surface(
         shape = FlyoutShape,
@@ -290,24 +310,37 @@ fun SettingsFlyoutContent(
         modifier = Modifier.width(MenuWidth)
     ) {
         Box(modifier = Modifier.padding(start = 8.dp, top = 16.dp, bottom = 16.dp, end = 8.dp)) {
-            if (currentScreen == "Main") {
-                MainSettingsScreen(
+            when (currentScreen) {
+                "Main" -> MainSettingsScreen(
                     playingInfoCache = playingInfoCache,
                     isoTagData = isoTagData,
+//                    currentVideoAspectRatio = currentVideoAspectRatio,
                     onNavigateToAudio = { onNavigate("Audio") },
-                    onNavigateToWindowAspectRatio = { onNavigate("WindowAspectRatio") }
+                    onNavigateToWindowAspectRatio = { onNavigate("WindowAspectRatio") },
+//                    onNavigateToVideoAspectRatio = { onNavigate("VideoAspectRatio") },
+                    onNavigateToSkipConfig = { onNavigate("SkipConfig") }
                 )
-            } else if (currentScreen == "Audio") {
-                AudioSettingsScreen(
+
+                "Audio" -> AudioSettingsScreen(
                     playingInfoCache = playingInfoCache,
                     isoTagData = isoTagData,
                     onBack = { onNavigate("Main") },
                     onAudioSelected = onAudioSelected
                 )
-            } else if (currentScreen == "WindowAspectRatio") {
-                WindowAspectRatioSettingsScreen(
+
+                "WindowAspectRatio" -> WindowAspectRatioSettingsScreen(
                     onBack = { onNavigate("Main") },
                     onAspectRatioSelected = onWindowAspectRatioChanged
+                )
+//                "VideoAspectRatio" -> VideoAspectRatioSettingsScreen(
+//                    currentAspectRatio = currentVideoAspectRatio,
+//                    onBack = { onNavigate("Main") },
+//                    onAspectRatioSelected = onVideoAspectRatioChanged
+//                )
+                "SkipConfig" -> SkipConfigSettingsScreen(
+                    playingInfoCache = playingInfoCache,
+                    onBack = { onNavigate("Main") },
+                    onConfigChanged = onSkipConfigChanged
                 )
             }
         }
@@ -318,8 +351,11 @@ fun SettingsFlyoutContent(
 fun MainSettingsScreen(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
+//    currentVideoAspectRatio: AspectRatioMode?,
     onNavigateToAudio: () -> Unit,
-    onNavigateToWindowAspectRatio: () -> Unit
+    onNavigateToWindowAspectRatio: () -> Unit,
+//    onNavigateToVideoAspectRatio: () -> Unit,
+    onNavigateToSkipConfig: () -> Unit
 ) {
     val currentAudio = playingInfoCache?.currentAudioStream
     val language = if (currentAudio != null) {
@@ -346,35 +382,80 @@ fun MainSettingsScreen(
                 fontWeight = FontWeight.Bold
             )
         }
-        
+
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 12.dp),
             color = Color.White.copy(alpha = 0.1f)
         )
 
-        // Aspect Ratio (Placeholder)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 8.dp, start = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("画面比例", color = DefaultTextColor, fontSize = 14.sp)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "自动",
-                    color = DefaultTextColor,
-                    fontSize = 14.sp
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = DefaultTextColor,
-                    modifier = Modifier.size(16.dp)
-                )
+        // Skip Config
+        if (playingInfoCache?.isEpisode == true || playingInfoCache?.item?.type == FnTvMediaType.EPISODE.value) {
+            val skipOpening = playingInfoCache.playConfig?.skipOpening ?: 0
+            val skipEnding = playingInfoCache.playConfig?.skipEnding ?: 0
+            val skipText = when {
+                skipOpening > 0 && skipEnding > 0 -> "跳过片头片尾"
+                skipOpening > 0 -> "已设置片头"
+                skipEnding > 0 -> "已设置片尾"
+                else -> "未设置"
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToSkipConfig() }
+                    .padding(top = 8.dp, bottom = 8.dp, start = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("跳过片头/片尾", color = DefaultTextColor, fontSize = 14.sp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = skipText,
+                        color = DefaultTextColor,
+                        fontSize = 14.sp
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = DefaultTextColor,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
+
+        // Aspect Ratio
+//        val videoAspectRatioText = when (currentVideoAspectRatio) {
+//            AspectRatioMode.FIT -> "适应"
+//            AspectRatioMode.STRETCH -> "拉伸"
+//            AspectRatioMode.CROP -> "裁剪"
+//            AspectRatioMode.ORIGINAL -> "原始"
+//            else -> "自动"
+//        }
+
+//        Row(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .clickable { onNavigateToVideoAspectRatio() }
+//                .padding(top = 8.dp, bottom = 8.dp, start = 8.dp),
+//            horizontalArrangement = Arrangement.SpaceBetween,
+//            verticalAlignment = Alignment.CenterVertically
+//        ) {
+//            Text("画面比例", color = DefaultTextColor, fontSize = 14.sp)
+//            Row(verticalAlignment = Alignment.CenterVertically) {
+//                Text(
+//                    text = videoAspectRatioText,
+//                    color = DefaultTextColor,
+//                    fontSize = 14.sp
+//                )
+//                Icon(
+//                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+//                    contentDescription = null,
+//                    tint = DefaultTextColor,
+//                    modifier = Modifier.size(16.dp)
+//                )
+//            }
+//    }
 
         val currentWindowAspectRatio = PlayingSettingsStore.playerWindowAspectRatio
         val currentWindowAspectRatioText = when (currentWindowAspectRatio) {
@@ -482,7 +563,7 @@ fun WindowAspectRatioSettingsScreen(
             options.forEach { option ->
                 val isSelected = option == currentRatio
                 val label = optionLabels[option] ?: option
-                
+
                 AspectRatioOptionItem(
                     label = label,
                     isSelected = isSelected,
@@ -521,7 +602,7 @@ fun AspectRatioOptionItem(
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold
         )
-        
+
         if (isSelected) {
             Icon(
                 imageVector = Icons.Default.Check,
@@ -573,91 +654,212 @@ fun AudioSettingsScreen(
             modifier = Modifier.padding(bottom = 12.dp),
             color = Color.White.copy(alpha = 0.1f)
         )
-        val lazyListState = rememberLazyListState()
-        AnimatedScrollbarLazyColumn(
-            listState = lazyListState,
-            modifier = Modifier.height(200.dp),
-            scrollbarWidth = 2.dp,
-            scrollbarOffsetX = 3.dp
-        ) {
-            items(audioList) { audio ->
-                val isSelected = audio.guid == currentAudioStream?.guid
-                val language = FnDataConvertor.getLanguageName(audio.language, isoTagData)
-                val details = "${audio.codecName} ${audio.channelLayout}"
-                val title = audio.title
 
-                AudioOptionItem(
-                    language = language,
-                    details = details,
-                    title = title,
-                    isDefault = audio.isDefault == 1,
+        Column {
+            audioList.forEach { audio ->
+                val isSelected = currentAudioStream?.index == audio.index
+                val language = FnDataConvertor.getLanguageName(audio.language, isoTagData)
+                val label = "$language ${audio.codecName} ${audio.channelLayout}"
+
+                AspectRatioOptionItem(
+                    label = label,
                     isSelected = isSelected,
-                    onClick = {
-                        onAudioSelected(audio)
-                        playingInfoCache?.currentAudioStream = audio
-                    }
+                    onClick = { onAudioSelected(audio) }
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun AudioOptionItem(
-    language: String,
-    details: String,
-    title: String,
-    isDefault: Boolean,
-    isSelected: Boolean,
-    onClick: () -> Unit
+fun SkipConfigSettingsScreen(
+    playingInfoCache: PlayingInfoCache?,
+    onBack: () -> Unit,
+    onConfigChanged: (Int, Int) -> Unit
 ) {
-    val textColor = if (isSelected) SelectedTextColor else DefaultTextColor
-    var isHovered by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 4.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (isHovered) HoverBackgroundColor else Color.Transparent)
-            .clickable(onClick = onClick)
-            .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-            .onPointerEvent(PointerEventType.Exit) { isHovered = false }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = language,
-                    color = textColor,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                if (isDefault) {
-                    Text(
-                        text = " - 默认",
-                        color = textColor,
-                        fontSize = 14.sp
-                    )
-                }
-            }
+    val playConfig = playingInfoCache?.playConfig
+    var skipOpening by remember { mutableStateOf(playConfig?.skipOpening ?: 0) }
+    var skipEnding by remember { mutableStateOf(playConfig?.skipEnding ?: 0) }
+
+    // Get total duration in seconds. Fallback to stream duration (ms -> s) or default 300s.
+//    val totalDurationSec = playingInfoCache?.item?.duration?.toLong()
+//        ?: (playingInfoCache?.streamInfo?.duration?.div(1000) ?: 300L)
+
+    // Max value for sliders.
+    val maxDuration = 600f
+
+    Column {
+        // Back Button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onBack() }
+                .padding(bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 180f }
+            )
             Text(
-                text = "$details  $title",
-                color = if (isSelected) SelectedTextColor.copy(alpha = 0.8f) else DefaultTextColor.copy(alpha = 0.6f),
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = "跳过片头/片尾",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp)
             )
         }
-        
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = null,
-                tint = SelectedTextColor,
-                modifier = Modifier.size(16.dp)
+
+        HorizontalDivider(
+            modifier = Modifier.padding(bottom = 12.dp),
+            color = Color.White.copy(alpha = 0.1f)
+        )
+
+        // Intro Skip
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("跳过片头", color = DefaultTextColor, fontSize = 14.sp)
+                Text(
+                    text = FnDataConvertor.formatDurationToDateTime(skipOpening * 1000L),
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalTimeSlider(
+                value = skipOpening.toFloat(),
+                maxValue = maxDuration,
+                onValueChange = {
+                    skipOpening = it.roundToInt()
+                },
+                onValueChangeFinished = {
+                    onConfigChanged(skipOpening, skipEnding)
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Outro Skip
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("跳过片尾", color = DefaultTextColor, fontSize = 14.sp)
+                Text(
+                    text = FnDataConvertor.formatDurationToDateTime(skipEnding * 1000L),
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalTimeSlider(
+                value = skipEnding.toFloat(),
+                maxValue = maxDuration,
+                onValueChange = {
+                    skipEnding = it.roundToInt()
+                },
+                onValueChangeFinished = {
+                    onConfigChanged(skipOpening, skipEnding)
+                }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Reset Button
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = "重置",
+                color = SelectedTextColor,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable {
+                        skipOpening = 0
+                        skipEnding = 0
+                        onConfigChanged(0, 0)
+                    }
+                    .padding(8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun HorizontalTimeSlider(
+    value: Float,
+    maxValue: Float,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit
+) {
+    val barHeight = 4.dp
+    val thumbRadius = 6.dp
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(20.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val newValue = (offset.x / size.width * maxValue).coerceIn(0f, maxValue)
+                    onValueChange(newValue)
+                    onValueChangeFinished()
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragEnd = { onValueChangeFinished() }
+                ) { change, _ ->
+                    val newValue =
+                        (change.position.x / size.width * maxValue).coerceIn(0f, maxValue)
+                    onValueChange(newValue)
+                    change.consume()
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(20.dp)) {
+            val trackYCenter = size.height / 2
+            val trackHeight = barHeight.toPx()
+
+            // Background
+            drawLine(
+                color = Color.White.copy(alpha = 0.3f),
+                start = Offset(0f, trackYCenter),
+                end = Offset(size.width, trackYCenter),
+                strokeWidth = trackHeight,
+                cap = StrokeCap.Round
+            )
+
+            // Active Progress
+            val progressRatio = if (maxValue > 0) value / maxValue else 0f
+            val activeWidth = progressRatio * size.width
+
+            if (activeWidth > 0) {
+                drawLine(
+                    color = Color(0xFF3B82F6),
+                    start = Offset(0f, trackYCenter),
+                    end = Offset(activeWidth, trackYCenter),
+                    strokeWidth = trackHeight,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // Thumb
+            drawCircle(
+                color = Color.White,
+                radius = thumbRadius.toPx(),
+                center = Offset(activeWidth, trackYCenter)
             )
         }
     }

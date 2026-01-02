@@ -47,7 +47,9 @@ fun VideoPlayerProgressBar(
     player: MediampPlayer,
     totalDuration: Long,
     onSeek: (Float) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    skipOpening: Int = 0,
+    skipEnding: Int = 0
 ) {
     // 获取当前播放位置
     val currentPosition by player.currentPositionMillis.collectAsState()
@@ -63,6 +65,22 @@ fun VideoPlayerProgressBar(
             }
         }
     }
+    
+    val skipOpeningRatio = remember(skipOpening, totalDuration) {
+        if (totalDuration > 0 && skipOpening > 0) {
+            (skipOpening * 1000f) / totalDuration
+        } else {
+            0f
+        }
+    }
+
+    val skipEndingRatio = remember(skipEnding, totalDuration) {
+        if (totalDuration > 0 && skipEnding > 0) {
+            ((totalDuration - skipEnding * 1000f) / totalDuration).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+    }
 
     // 其余部分保持不变，只是将 progress 参数替换为 displayPositionRatio
     VideoPlayerProgressBarImpl(
@@ -70,7 +88,9 @@ fun VideoPlayerProgressBar(
         buffered = 0f, // 如果需要缓冲进度，可以类似处理
         totalDuration = totalDuration,
         onSeek = onSeek,
-        modifier = modifier
+        modifier = modifier,
+        skipOpeningRatio = skipOpeningRatio,
+        skipEndingRatio = skipEndingRatio
     )
 }
 
@@ -90,7 +110,9 @@ fun VideoPlayerProgressBarImpl(
     buffered: Float,
     totalDuration: Long,
     onSeek: (Float) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    skipOpeningRatio: Float = 0f,
+    skipEndingRatio: Float = 0f
 ) {
     var isHovered by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -179,6 +201,23 @@ fun VideoPlayerProgressBarImpl(
                             end = Offset(activeEndX, trackYCenter),
                             strokeWidth = trackStrokeWidth,
                             cap = StrokeCap.Round
+                        )
+                    }
+
+                    // Draw markers for skip intro/outro
+                    val markerRadius = if (showDetails) 3.dp.toPx() else 1.dp.toPx()// White dot radius
+                    if (skipOpeningRatio > 0f && skipOpeningRatio < 1f) {
+                         drawCircle(
+                            color = Color.White,
+                            radius = markerRadius,
+                            center = Offset(skipOpeningRatio * size.width, trackYCenter)
+                        )
+                    }
+                    if (skipEndingRatio > 0f && skipEndingRatio < 1f) {
+                         drawCircle(
+                            color = Color.White,
+                            radius = markerRadius,
+                            center = Offset(skipEndingRatio * size.width, trackYCenter)
                         )
                     }
 
