@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -58,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import co.touchlab.kermit.Logger
+import com.jankinwu.fntv.client.data.constants.Colors
 import com.jankinwu.fntv.client.data.convertor.FnDataConvertor
 import com.jankinwu.fntv.client.data.model.PlayingInfoCache
 import com.jankinwu.fntv.client.data.model.response.AudioStream
@@ -89,6 +91,8 @@ private const val ANIMATION_DURATION_MS = 200
 fun PlayerSettingsMenu(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
+    currentPositionMillis: Long,
+    totalDurationMillis: Long,
     onAudioSelected: (AudioStream) -> Unit,
     onWindowAspectRatioChanged: (String) -> Unit,
 //    currentVideoAspectRatio: AspectRatioMode?,
@@ -217,6 +221,8 @@ fun PlayerSettingsMenu(
                         SettingsFlyoutContent(
                             playingInfoCache = playingInfoCache,
                             isoTagData = isoTagData,
+                            currentPositionMillis = currentPositionMillis,
+                            totalDurationMillis = totalDurationMillis,
                             currentScreen = currentScreen,
                             onNavigate = { currentScreen = it },
                             onAudioSelected = {
@@ -295,6 +301,8 @@ private fun FlyoutWithAnimation(
 fun SettingsFlyoutContent(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
+    currentPositionMillis: Long,
+    totalDurationMillis: Long,
     currentScreen: String,
     onNavigate: (String) -> Unit,
     onAudioSelected: (AudioStream) -> Unit,
@@ -339,6 +347,8 @@ fun SettingsFlyoutContent(
 //                )
                 "SkipConfig" -> SkipConfigSettingsScreen(
                     playingInfoCache = playingInfoCache,
+                    currentPositionMillis = currentPositionMillis,
+                    totalDurationMillis = totalDurationMillis,
                     onBack = { onNavigate("Main") },
                     onConfigChanged = onSkipConfigChanged
                 )
@@ -674,6 +684,8 @@ fun AudioSettingsScreen(
 @Composable
 fun SkipConfigSettingsScreen(
     playingInfoCache: PlayingInfoCache?,
+    currentPositionMillis: Long,
+    totalDurationMillis: Long,
     onBack: () -> Unit,
     onConfigChanged: (Int, Int) -> Unit
 ) {
@@ -681,41 +693,80 @@ fun SkipConfigSettingsScreen(
     var skipOpening by remember { mutableStateOf(playConfig?.skipOpening ?: 0) }
     var skipEnding by remember { mutableStateOf(playConfig?.skipEnding ?: 0) }
 
-    // Get total duration in seconds. Fallback to stream duration (ms -> s) or default 300s.
-//    val totalDurationSec = playingInfoCache?.item?.duration?.toLong()
-//        ?: (playingInfoCache?.streamInfo?.duration?.div(1000) ?: 300L)
-
     // Max value for sliders.
     val maxDuration = 600f
 
+    // Scope text
+    val scopeText = playingInfoCache?.item?.let {
+        "《${it.tvTitle}》 第 ${it.seasonNumber} 季"
+    } ?: "未知"
+
     Column {
-        // Back Button
+        // Header with Back Button, Title, and Reset Button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onBack() }
-                .padding(bottom = 12.dp),
+                .padding(bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 180f }
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable { onBack() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = 180f }
+                )
+                Text(
+                    text = "跳过片头/片尾",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+
+            // Reset Button
             Text(
-                text = "跳过片头/片尾",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 8.dp)
+                text = "重置",
+                color = Colors.TextSecondaryColor,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .border(
+                        width = 1.dp,
+                        color = Colors.TextSecondaryColor,
+                        shape = RoundedCornerShape(50)
+                    )
+                    .clickable {
+                        skipOpening = 0
+                        skipEnding = 0
+                        onConfigChanged(0, 0)
+                    }
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
+
+        // Scope Text
+        Text(
+            text = "生效范围: $scopeText",
+            color = DefaultTextColor,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .padding(start = 8.dp, end = 8.dp, bottom = 12.dp)
+        )
 
         HorizontalDivider(
             modifier = Modifier.padding(bottom = 12.dp),
             color = Color.White.copy(alpha = 0.1f)
         )
+
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Intro Skip
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
@@ -723,17 +774,38 @@ fun SkipConfigSettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("跳过片头", color = DefaultTextColor, fontSize = 14.sp)
-                Text(
-                    text = FnDataConvertor.formatDurationToDateTime(skipOpening * 1000L),
-                    color = DefaultTextColor,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("跳过片头", color = DefaultTextColor, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = FnDataConvertor.formatDurationToDateTime(skipOpening * 1000L),
+                        color = DefaultTextColor,
+                        fontSize = 14.sp
+                    )
+                }
+                val formattedCurrentPosition = FnDataConvertor.formatDurationToDateTime(currentPositionMillis)
+                if (currentPositionMillis <= maxDuration * 1000) {
+                    Text(
+                        text = "将当前时间 $formattedCurrentPosition 设为片头",
+                        color = SelectedTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable {
+                                val newSkipOpening = (currentPositionMillis / 1000).toInt()
+                                skipOpening = newSkipOpening
+                                onConfigChanged(skipOpening, skipEnding)
+                            }
+//                            .padding(vertical = 4.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalTimeSlider(
                 value = skipOpening.toFloat(),
                 maxValue = maxDuration,
+                isReverse = false,
                 onValueChange = {
                     skipOpening = it.roundToInt()
                 },
@@ -741,6 +813,23 @@ fun SkipConfigSettingsScreen(
                     onConfigChanged(skipOpening, skipEnding)
                 }
             )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "开始",
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "10 分钟",
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -749,19 +838,48 @@ fun SkipConfigSettingsScreen(
         Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("跳过片尾", color = DefaultTextColor, fontSize = 14.sp)
-                Text(
-                    text = FnDataConvertor.formatDurationToDateTime(skipEnding * 1000L),
-                    color = DefaultTextColor,
-                    fontSize = 14.sp
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("跳过片尾", color = DefaultTextColor, fontSize = 14.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = FnDataConvertor.formatDurationToDateTime(skipEnding * 1000L),
+                        color = DefaultTextColor,
+                        fontSize = 14.sp
+                    )
+                }
+                // Set Remaining as Outro
+                val remainingMillis = if (totalDurationMillis > currentPositionMillis) {
+                    totalDurationMillis - currentPositionMillis
+                } else {
+                    0L
+                }
+                val formattedRemaining = FnDataConvertor.formatDurationToDateTime(remainingMillis)
+
+                if (remainingMillis <= maxDuration * 1000) {
+                    Text(
+                        text = "将当前剩余时长 $formattedRemaining 设为片尾",
+                        color = SelectedTextColor,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable {
+                                val newSkipEnding = (remainingMillis / 1000).toInt()
+                                skipEnding = newSkipEnding
+                                onConfigChanged(skipOpening, skipEnding)
+                            }
+//                            .padding(vertical = 4.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalTimeSlider(
                 value = skipEnding.toFloat(),
                 maxValue = maxDuration,
+                isReverse = true,
                 onValueChange = {
                     skipEnding = it.roundToInt()
                 },
@@ -769,29 +887,24 @@ fun SkipConfigSettingsScreen(
                     onConfigChanged(skipOpening, skipEnding)
                 }
             )
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-        // Reset Button
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 8.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Text(
-                text = "重置",
-                color = SelectedTextColor,
-                fontSize = 14.sp,
-                modifier = Modifier
-                    .clickable {
-                        skipOpening = 0
-                        skipEnding = 0
-                        onConfigChanged(0, 0)
-                    }
-                    .padding(8.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "10 分钟",
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "结束",
+                    color = DefaultTextColor,
+                    fontSize = 14.sp
+                )
+            }
         }
     }
 }
@@ -800,6 +913,7 @@ fun SkipConfigSettingsScreen(
 fun HorizontalTimeSlider(
     value: Float,
     maxValue: Float,
+    isReverse: Boolean = false,
     onValueChange: (Float) -> Unit,
     onValueChangeFinished: () -> Unit
 ) {
@@ -812,7 +926,12 @@ fun HorizontalTimeSlider(
             .height(20.dp)
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
-                    val newValue = (offset.x / size.width * maxValue).coerceIn(0f, maxValue)
+                    val rawRatio = offset.x / size.width
+                    val newValue = if (isReverse) {
+                        ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
+                    } else {
+                        (rawRatio * maxValue).coerceIn(0f, maxValue)
+                    }
                     onValueChange(newValue)
                     onValueChangeFinished()
                 }
@@ -821,8 +940,12 @@ fun HorizontalTimeSlider(
                 detectDragGestures(
                     onDragEnd = { onValueChangeFinished() }
                 ) { change, _ ->
-                    val newValue =
-                        (change.position.x / size.width * maxValue).coerceIn(0f, maxValue)
+                    val rawRatio = change.position.x / size.width
+                    val newValue = if (isReverse) {
+                        ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
+                    } else {
+                        (rawRatio * maxValue).coerceIn(0f, maxValue)
+                    }
                     onValueChange(newValue)
                     change.consume()
                 }
@@ -846,20 +969,24 @@ fun HorizontalTimeSlider(
             val activeWidth = progressRatio * size.width
 
             if (activeWidth > 0) {
+                val startX = if (isReverse) size.width else 0f
+                val endX = if (isReverse) size.width - activeWidth else activeWidth
+
                 drawLine(
                     color = Color(0xFF3B82F6),
-                    start = Offset(0f, trackYCenter),
-                    end = Offset(activeWidth, trackYCenter),
+                    start = Offset(startX, trackYCenter),
+                    end = Offset(endX, trackYCenter),
                     strokeWidth = trackHeight,
                     cap = StrokeCap.Round
                 )
             }
 
             // Thumb
+            val thumbX = if (isReverse) size.width - activeWidth else activeWidth
             drawCircle(
                 color = Color.White,
                 radius = thumbRadius.toPx(),
-                center = Offset(activeWidth, trackYCenter)
+                center = Offset(thumbX, trackYCenter)
             )
         }
     }

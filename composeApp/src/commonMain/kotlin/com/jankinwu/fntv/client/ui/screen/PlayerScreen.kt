@@ -1693,6 +1693,7 @@ fun PlayerControlRow(
     playRecordViewModel: PlayRecordViewModel,
     onSkipConfigChanged: ((Int, Int) -> Unit)? = null
 ) {
+    val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -1869,6 +1870,8 @@ fun PlayerControlRow(
             PlayerSettingsMenu(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
+                currentPositionMillis = currentPositionMillis,
+                totalDurationMillis = totalDuration,
                 onAudioSelected = { audio ->
                     onAudioSelected?.invoke(audio)
                 },
