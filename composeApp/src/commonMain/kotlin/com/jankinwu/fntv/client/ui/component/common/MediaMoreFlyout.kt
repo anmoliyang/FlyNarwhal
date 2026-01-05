@@ -25,16 +25,44 @@ import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.MenuFlyoutContainer
 import io.github.composefluent.component.MenuFlyoutItem
 import io.github.composefluent.component.MenuFlyoutSeparator
+import io.github.composefluent.icons.Icons
+import io.github.composefluent.icons.regular.PlayCircle
 
 @Composable
 fun MediaMoreFlyout(
     onManageVersionsClick: (() -> Unit)? = null,
+    onSmartAnalysisClick: (() -> Unit)? = null,
     content: @Composable (onClick: () -> Unit) -> Unit,
 ) {
     val store = LocalStore.current
     val scaleFactor = store.scaleFactor
     MenuFlyoutContainer(
         flyout = {
+            if (onSmartAnalysisClick != null) {
+                MenuFlyoutItem(
+                    text = {
+                        Text(
+                            "智能检测片头/片尾",
+                            fontSize = (12 * scaleFactor).sp,
+                            fontWeight = FontWeight.Bold,
+                            color = FluentTheme.colors.text.text.tertiary
+                        )
+                    },
+                    onClick = {
+                        isFlyoutVisible = false
+                        onSmartAnalysisClick.invoke()
+                    },
+                    icon = {
+                        Icon(
+                            Icons.Regular.PlayCircle,
+                            contentDescription = "智能检测片头/片尾",
+                            tint = FluentTheme.colors.text.text.tertiary,
+                            modifier = Modifier.requiredSize((20 * scaleFactor).dp)
+                        )
+                    },
+                    modifier = Modifier.pointerHoverIcon(PointerIcon.Hand)
+                )
+            }
             MenuFlyoutItem(
                 text = {
                     Text(

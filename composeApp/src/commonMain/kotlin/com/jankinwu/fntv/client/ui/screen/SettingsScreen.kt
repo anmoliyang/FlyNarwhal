@@ -89,6 +89,7 @@ import io.github.composefluent.icons.regular.Color
 import io.github.composefluent.icons.regular.Globe
 import io.github.composefluent.icons.regular.Navigation
 import io.github.composefluent.icons.regular.Person
+import io.github.composefluent.icons.regular.PlayCircle
 import io.github.composefluent.icons.regular.WeatherMoon
 import io.github.composefluent.icons.regular.WeatherSunny
 import org.jetbrains.compose.resources.painterResource
@@ -117,6 +118,9 @@ fun SettingsScreen(navigator: ComponentNavigator) {
     var selectedDate by remember { mutableStateOf(availableDates.firstOrNull() ?: "") }
     var isExporting by remember { mutableStateOf(false) }
     var exportError by remember { mutableStateOf<String?>(null) }
+
+    var smartAnalysisEnabled by remember { mutableStateOf(AppSettingsStore.smartAnalysisEnabled) }
+    var smartAnalysisBaseUrl by remember { mutableStateOf(AppSettingsStore.smartAnalysisBaseUrl) }
 
     if (isExporting) {
         FluentDialog(
@@ -563,6 +567,48 @@ fun SettingsScreen(navigator: ComponentNavigator) {
                         }
                     }
                 )
+
+                Header("播放")
+                CardExpanderItem(
+                    heading = { Text("智能检测片头/片尾") },
+                    caption = { Text("开启后可连接分析服务进行片头片尾检测") },
+                    icon = { Icon(Icons.Regular.PlayCircle, null, modifier = Modifier.size(18.dp)) },
+                    trailing = {
+                        Switcher(
+                            checked = smartAnalysisEnabled,
+                            text = if (smartAnalysisEnabled) "开启" else "关闭",
+                            textBefore = true,
+                            onCheckStateChange = {
+                                smartAnalysisEnabled = it
+                                AppSettingsStore.smartAnalysisEnabled = it
+                            }
+                        )
+                    }
+                )
+
+                AnimatedVisibility(
+                    visible = smartAnalysisEnabled,
+                    enter = fadeIn() + expandVertically(expandFrom = Alignment.Top),
+                    exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Top)
+                ) {
+                    CardExpanderItem(
+                        heading = { Text("分析服务地址") },
+                        caption = { Text("Fly Narwhal 服务端 Base URL") },
+                        icon = { Icon(Icons.Regular.Globe, null, modifier = Modifier.size(18.dp)) },
+                        trailing = {
+                            TextField(
+                                value = smartAnalysisBaseUrl,
+                                onValueChange = {
+                                    smartAnalysisBaseUrl = it
+                                    AppSettingsStore.smartAnalysisBaseUrl = it
+                                },
+                                modifier = Modifier.width(200.dp),
+                                singleLine = true,
+                                placeholder = { Text("") },
+                            )
+                        }
+                    )
+                }
 
                 Header("关于")
                 CardExpanderItem(

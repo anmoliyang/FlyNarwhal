@@ -528,7 +528,8 @@ fun TvDetailBody(
                                                     guid,
                                                     currentWatchedState
                                                 )
-                                            }
+                                            },
+                                            seasonNumber = season.seasonNumber,
                                         )
                                     }
                                 }

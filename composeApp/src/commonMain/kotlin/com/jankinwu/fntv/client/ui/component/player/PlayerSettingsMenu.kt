@@ -71,6 +71,7 @@ import com.jankinwu.fntv.client.ui.providable.IsoTagData
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
+import io.github.composefluent.component.Switcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -100,7 +101,10 @@ fun PlayerSettingsMenu(
 //    onVideoAspectRatioChanged: (AspectRatioMode) -> Unit,
     onSkipConfigChanged: (Int, Int) -> Unit,
     modifier: Modifier = Modifier,
-    onHoverStateChanged: ((Boolean) -> Unit)? = null
+    onHoverStateChanged: ((Boolean) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false
 ) {
     val compositionSpec = PlayerResourceManager.settingsSpec
     val composition = if (compositionSpec != null) {
@@ -251,7 +255,10 @@ fun PlayerSettingsMenu(
                             //         onHoverStateChanged?.invoke(false)
                             //     }
                             // },
-                            onSkipConfigChanged = onSkipConfigChanged
+                            onSkipConfigChanged = onSkipConfigChanged,
+                            smartSkipEnabled = smartSkipEnabled,
+                            onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                            isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
                         )
                     }
                 }
@@ -310,7 +317,10 @@ fun SettingsFlyoutContent(
     onWindowAspectRatioChanged: (String) -> Unit,
 //    currentVideoAspectRatio: AspectRatioMode?,
 //    onVideoAspectRatioChanged: (AspectRatioMode) -> Unit,
-    onSkipConfigChanged: (Int, Int) -> Unit
+    onSkipConfigChanged: (Int, Int) -> Unit,
+    smartSkipEnabled: Boolean,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit,
+    isSmartAnalysisGloballyEnabled: Boolean
 ) {
     Surface(
         shape = FlyoutShape,
@@ -323,10 +333,10 @@ fun SettingsFlyoutContent(
                 "Main" -> MainSettingsScreen(
                     playingInfoCache = playingInfoCache,
                     isoTagData = isoTagData,
-//                    currentVideoAspectRatio = currentVideoAspectRatio,
+                    //                    currentVideoAspectRatio = currentVideoAspectRatio,
                     onNavigateToAudio = { onNavigate("Audio") },
                     onNavigateToWindowAspectRatio = { onNavigate("WindowAspectRatio") },
-//                    onNavigateToVideoAspectRatio = { onNavigate("VideoAspectRatio") },
+                    //                    onNavigateToVideoAspectRatio = { onNavigate("VideoAspectRatio") },
                     onNavigateToSkipConfig = { onNavigate("SkipConfig") }
                 )
 
@@ -351,7 +361,10 @@ fun SettingsFlyoutContent(
                     currentPositionMillis = currentPositionMillis,
                     totalDurationMillis = totalDurationMillis,
                     onBack = { onNavigate("Main") },
-                    onConfigChanged = onSkipConfigChanged
+                    onConfigChanged = onSkipConfigChanged,
+                    smartSkipEnabled = smartSkipEnabled,
+                    onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
                 )
             }
         }
@@ -688,7 +701,10 @@ fun SkipConfigSettingsScreen(
     currentPositionMillis: Long,
     totalDurationMillis: Long,
     onBack: () -> Unit,
-    onConfigChanged: (Int, Int) -> Unit
+    onConfigChanged: (Int, Int) -> Unit,
+    smartSkipEnabled: Boolean,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit,
+    isSmartAnalysisGloballyEnabled: Boolean
 ) {
     val playConfig = playingInfoCache?.playConfig
     var skipOpening by remember { mutableIntStateOf(playConfig?.skipOpening ?: 0) }
@@ -701,6 +717,8 @@ fun SkipConfigSettingsScreen(
     val scopeText = playingInfoCache?.item?.let {
         "《${it.tvTitle}》 第 ${it.seasonNumber} 季"
     } ?: "未知"
+
+    val manualEnabled = !isSmartAnalysisGloballyEnabled || !smartSkipEnabled
 
     Column {
         // Header with Back Button, Title, and Reset Button
@@ -734,16 +752,16 @@ fun SkipConfigSettingsScreen(
             // Reset Button
             Text(
                 text = "重置",
-                color = Colors.TextSecondaryColor,
+                color = if (manualEnabled) Colors.TextSecondaryColor else Colors.TextSecondaryColor.copy(alpha = 0.5f),
                 fontSize = 14.sp,
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
                     .border(
                         width = 1.dp,
-                        color = Colors.TextSecondaryColor,
+                        color = if (manualEnabled) Colors.TextSecondaryColor else Colors.TextSecondaryColor.copy(alpha = 0.5f),
                         shape = RoundedCornerShape(50)
                     )
-                    .clickable {
+                    .clickable(enabled = manualEnabled) {
                         skipOpening = 0
                         skipEnding = 0
                         onConfigChanged(0, 0)
@@ -761,6 +779,22 @@ fun SkipConfigSettingsScreen(
                 .padding(start = 8.dp, end = 8.dp, bottom = 12.dp)
         )
 
+        if (isSmartAnalysisGloballyEnabled) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("智能检测片头/片尾", color = DefaultTextColor, fontSize = 14.sp)
+                Switcher(
+                    checked = smartSkipEnabled,
+                    onCheckStateChange = { onSmartSkipEnabledChanged(it) }
+                )
+            }
+        }
+
         HorizontalDivider(
             modifier = Modifier.padding(bottom = 12.dp),
             color = Color.White.copy(alpha = 0.1f)
@@ -770,7 +804,7 @@ fun SkipConfigSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Intro Skip
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).alpha(if (manualEnabled) 1f else 0.5f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -793,7 +827,7 @@ fun SkipConfigSettingsScreen(
                         color = SelectedTextColor,
                         fontSize = 12.sp,
                         modifier = Modifier
-                            .clickable {
+                            .clickable(enabled = manualEnabled) {
                                 val newSkipOpening = (currentPositionMillis / 1000).toInt()
                                 skipOpening = newSkipOpening
                                 onConfigChanged(skipOpening, skipEnding)
@@ -808,11 +842,12 @@ fun SkipConfigSettingsScreen(
                 maxValue = maxDuration,
                 isReverse = false,
                 onValueChange = {
-                    skipOpening = it.roundToInt()
+                    if (manualEnabled) skipOpening = it.roundToInt()
                 },
                 onValueChangeFinished = {
-                    onConfigChanged(skipOpening, skipEnding)
-                }
+                    if (manualEnabled) onConfigChanged(skipOpening, skipEnding)
+                },
+                enabled = manualEnabled
             )
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -836,7 +871,7 @@ fun SkipConfigSettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Outro Skip
-        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).alpha(if (manualEnabled) 1f else 0.5f)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -867,7 +902,7 @@ fun SkipConfigSettingsScreen(
                         color = SelectedTextColor,
                         fontSize = 12.sp,
                         modifier = Modifier
-                            .clickable {
+                            .clickable(enabled = manualEnabled) {
                                 val newSkipEnding = (remainingMillis / 1000).toInt()
                                 skipEnding = newSkipEnding
                                 onConfigChanged(skipOpening, skipEnding)
@@ -882,11 +917,12 @@ fun SkipConfigSettingsScreen(
                 maxValue = maxDuration,
                 isReverse = true,
                 onValueChange = {
-                    skipEnding = it.roundToInt()
+                    if (manualEnabled) skipEnding = it.roundToInt()
                 },
                 onValueChangeFinished = {
-                    onConfigChanged(skipOpening, skipEnding)
-                }
+                    if (manualEnabled) onConfigChanged(skipOpening, skipEnding)
+                },
+                enabled = manualEnabled
             )
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -916,7 +952,8 @@ fun HorizontalTimeSlider(
     maxValue: Float,
     isReverse: Boolean = false,
     onValueChange: (Float) -> Unit,
-    onValueChangeFinished: () -> Unit
+    onValueChangeFinished: () -> Unit,
+    enabled: Boolean = true
 ) {
     val barHeight = 4.dp
     val thumbRadius = 6.dp
@@ -925,32 +962,37 @@ fun HorizontalTimeSlider(
         modifier = Modifier
             .fillMaxWidth()
             .height(20.dp)
-            .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val rawRatio = offset.x / size.width
-                    val newValue = if (isReverse) {
-                        ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
-                    } else {
-                        (rawRatio * maxValue).coerceIn(0f, maxValue)
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectTapGestures { offset ->
+                        val rawRatio = offset.x / size.width
+                        val newValue = if (isReverse) {
+                            ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
+                        } else {
+                            (rawRatio * maxValue).coerceIn(0f, maxValue)
+                        }
+                        onValueChange(newValue)
+                        onValueChangeFinished()
                     }
-                    onValueChange(newValue)
-                    onValueChangeFinished()
                 }
             }
-            .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragEnd = { onValueChangeFinished() }
-                ) { change, _ ->
-                    val rawRatio = change.position.x / size.width
-                    val newValue = if (isReverse) {
-                        ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
-                    } else {
-                        (rawRatio * maxValue).coerceIn(0f, maxValue)
+            .pointerInput(enabled) {
+                if (enabled) {
+                    detectDragGestures(
+                        onDragEnd = { onValueChangeFinished() }
+                    ) { change, _ ->
+                        val rawRatio = change.position.x / size.width
+                        val newValue = if (isReverse) {
+                            ((1f - rawRatio) * maxValue).coerceIn(0f, maxValue)
+                        } else {
+                            (rawRatio * maxValue).coerceIn(0f, maxValue)
+                        }
+                        onValueChange(newValue)
+                        change.consume()
                     }
-                    onValueChange(newValue)
-                    change.consume()
                 }
             }
+            .alpha(if (enabled) 1f else 0.5f)
     ) {
         Canvas(modifier = Modifier.fillMaxWidth().height(20.dp)) {
             val trackYCenter = size.height / 2

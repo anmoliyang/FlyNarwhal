@@ -16,6 +16,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.koin.java.KoinJavaComponent.inject
 
+import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
+import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
+import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
+import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+
 class PlayerViewModel : ViewModel() {
     private val fnOfficialApi: FnOfficialApiImpl by inject(FnOfficialApiImpl::class.java)
 
@@ -25,17 +34,87 @@ class PlayerViewModel : ViewModel() {
     private val _subtitleSettings = MutableStateFlow(SubtitleSettings())
     val subtitleSettings: StateFlow<SubtitleSettings> = _subtitleSettings.asStateFlow()
 
+
+    private var analysisJob: Job? = null
+    private val _smartSegments = MutableStateFlow<EpisodeSegmentsResponse?>(null)
+
+    val smartSegments: StateFlow<EpisodeSegmentsResponse?> = _smartSegments.asStateFlow()
+
+    private val flyNarwhalApi = FlyNarwhalApiImpl()
+
+    private val _smartSkipEnabled = MutableStateFlow(PlayingSettingsStore.smartSkipEnabled)
+    val smartSkipEnabled: StateFlow<Boolean> = _smartSkipEnabled.asStateFlow()
+
     fun updateSubtitleSettings(settings: SubtitleSettings) {
         _subtitleSettings.value = settings
     }
 
-    fun updatePlayingInfo(info: PlayingInfoCache?) {
+    fun updatePlayingInfo(playingInfoCache: PlayingInfoCache?) {
         // 当切换视频（guid不同）或清除播放信息时，重置字幕设置
-        if (info?.itemGuid != _playingInfoCache.value?.itemGuid) {
+        if (playingInfoCache?.itemGuid != _playingInfoCache.value?.itemGuid) {
             _subtitleSettings.value = SubtitleSettings()
         }
-        _playingInfoCache.value = info
+        _playingInfoCache.value = playingInfoCache
+        if (playingInfoCache != null && AppSettingsStore.smartAnalysisEnabled && _smartSkipEnabled.value) {
+            checkAnalysisStatus(playingInfoCache.currentVideoStream.mediaGuid)
+        } else {
+            cancelAnalysisCheck()
+        }
     }
+
+    fun onSmartSkipEnabledChanged(enabled: Boolean) {
+        PlayingSettingsStore.smartSkipEnabled = enabled
+        _smartSkipEnabled.value = enabled
+        if (enabled && AppSettingsStore.smartAnalysisEnabled) {
+            val guid = playingInfoCache.value?.itemGuid
+            if (guid != null) {
+                checkAnalysisStatus(guid)
+            }
+        } else {
+            cancelAnalysisCheck()
+        }
+    }
+
+    private fun checkAnalysisStatus(guid: String) {
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
+            while (isActive) {
+                try {
+                    val statusResult = flyNarwhalApi.getStatus("EPISODE", guid)
+                    if (statusResult.isSuccess()) {
+                        val status = statusResult.data
+                        if (status == AnalysisStatus.COMPLETED) {
+                            val segmentsResult = flyNarwhalApi.getSegments(guid)
+                            if (segmentsResult.isSuccess()) {
+                                _smartSegments.value = segmentsResult.data
+                            }
+                            break
+                        } else if (status == AnalysisStatus.FAILED) {
+                            // Should handle error toast in UI by observing state or simple error state
+                            break
+                        } else if (status == AnalysisStatus.IN_PROGRESS || status == AnalysisStatus.PENDING) {
+                            delay(10000)
+                        } else {
+                            break
+                        }
+                    } else {
+                        break
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    break
+                }
+            }
+        }
+    }
+
+    private fun cancelAnalysisCheck() {
+        analysisJob?.cancel()
+        _smartSegments.value = null
+    }
+
+    // Merged into the first updatePlayingInfo
+
 
     fun updateSubtitleList(subtitleStreams: List<SubtitleStream>, streamInfo: StreamResponse) {
         _playingInfoCache.update { current ->

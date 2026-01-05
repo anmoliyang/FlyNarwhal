@@ -197,15 +197,16 @@ import kotlin.math.roundToInt
 private val logger = Logger.withTag("PlayerScreen")
 
 data class PlayerState(
+    val isEpisode: Boolean = false,
     val isVisible: Boolean = false,
     val isUiVisible: Boolean = true,
     val isLoading: Boolean = false,
     var itemGuid: String = "",
     val mediaTitle: String = "",
     val subhead: String = "",
-    var duration: Long = 0L,
-    val isEpisode: Boolean = false
+    var duration: Long = 0L
 )
+
 
 class PlayerManager {
     val toastManager: ToastManager = ToastManager()
@@ -457,23 +458,53 @@ fun PlayerOverlay(
         playerManager.playerState.duration
     }
     val playConfig = playingInfoCache?.playConfig
-    val skipEnding = playConfig?.skipEnding ?: 0
+
+    // Smart Analysis Skip Logic
+    val smartSegments by playerViewModel.smartSegments.collectAsState()
+    val smartSkipEnabled by playerViewModel.smartSkipEnabled.collectAsState()
+    val isSmartAnalysisGloballyEnabled = AppSettingsStore.smartAnalysisEnabled
+
+    val useSmartSkip = isSmartAnalysisGloballyEnabled && smartSkipEnabled && smartSegments != null
+
+    val effectiveSkipOpening = if (useSmartSkip) {
+        smartSegments?.intro?.end?.let { if (it > 0) it.toInt() else null } ?: (playConfig?.skipOpening ?: 0)
+    } else {
+        playConfig?.skipOpening ?: 0
+    }
+
+    val effectiveSkipEnding = if (useSmartSkip) {
+        if (smartSegments?.credits?.start != null && totalDuration > 0) {
+            val creditsStart = smartSegments?.credits?.start ?: 0.0
+            // Calculate how many seconds from the end we should skip
+            val durationSec = totalDuration / 1000.0
+            if (creditsStart < durationSec) {
+                (durationSec - creditsStart).toInt()
+            } else {
+                playConfig?.skipEnding ?: 0
+            }
+        } else {
+            playConfig?.skipEnding ?: 0
+        }
+    } else {
+        playConfig?.skipEnding ?: 0
+    }
 
     // Intro Skip
-//    LaunchedEffect(playingInfoCache?.itemGuid, playConfig) {
-//        val skipOpening = playConfig?.skipOpening ?: 0
-//        if (skipOpening > 0) {
-//            delay(500)
-//            val currentPos = mediaPlayer.currentPositionMillis.value
-//            if (currentPos < skipOpening * 1000) {
-//                mediaPlayer.seekTo(skipOpening * 1000L)
-//                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
-//            }
-//        }
-//    }
+    LaunchedEffect(playingInfoCache?.itemGuid, effectiveSkipOpening) {
+        val skipOpening = effectiveSkipOpening
+        if (skipOpening > 0) {
+            delay(500)
+            val currentPos = mediaPlayer.currentPositionMillis.value
+            if (currentPos < skipOpening * 1000) {
+                mediaPlayer.seekTo(skipOpening * 1000L)
+                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+            }
+        }
+    }
 
     // Outro Skip Monitor
-    LaunchedEffect(currentPosition, playConfig, skipOutroCancelled, totalDuration, playState, isSeeking, nextEpisode) {
+    LaunchedEffect(currentPosition, effectiveSkipEnding, skipOutroCancelled, totalDuration, playState, isSeeking, nextEpisode) {
+        val skipEnding = effectiveSkipEnding
         if (skipEnding > 0 && totalDuration > 0) {
             val skipPoint = totalDuration - skipEnding * 1000L
             val crossedIntoOutro = skipPoint in (lastOutroMonitorPosition + 1)..currentPosition
@@ -1493,7 +1524,10 @@ fun PlayerOverlay(
                     isNextEpisodeHovered = isNextEpisodeHovered,
                     onNextEpisodeHoverChanged = { isNextEpisodeHovered = it },
                     playRecordViewModel = playRecordViewModel,
-                    onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) }
+                    onSkipConfigChanged = { o, e -> playerViewModel.updateSkipConfig(o, e) },
+                    smartSkipEnabled = smartSkipEnabled,
+                    onSmartSkipEnabledChanged = playerViewModel::onSmartSkipEnabledChanged,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
                 )
             }
 
@@ -1736,7 +1770,10 @@ fun PlayerControlRow(
     isNextEpisodeHovered: Boolean = false,
     onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
     playRecordViewModel: PlayRecordViewModel,
-    onSkipConfigChanged: ((Int, Int) -> Unit)? = null
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false
 ) {
     val currentPositionMillis by mediaPlayer.currentPositionMillis.collectAsState()
     val interactionSource = remember { MutableInteractionSource() }
@@ -1928,7 +1965,10 @@ fun PlayerControlRow(
                     )
                 },
                 modifier = Modifier.padding(start = 12.dp),
-                onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) }
+                onHoverStateChanged = { onSettingsMenuHoverChanged?.invoke(it) },
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
             )
             val audioLevelController =
                 remember(mediaPlayer) { mediaPlayer.features[AudioLevelController] }
@@ -3086,7 +3126,10 @@ fun PlayerBottomBar(
     isNextEpisodeHovered: Boolean = false,
     onNextEpisodeHoverChanged: ((Boolean) -> Unit)? = null,
     playRecordViewModel: PlayRecordViewModel,
-    onSkipConfigChanged: ((Int, Int) -> Unit)? = null
+    onSkipConfigChanged: ((Int, Int) -> Unit)? = null,
+    smartSkipEnabled: Boolean = true,
+    onSmartSkipEnabledChanged: (Boolean) -> Unit = {},
+    isSmartAnalysisGloballyEnabled: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -3150,7 +3193,10 @@ fun PlayerBottomBar(
                 isNextEpisodeHovered = isNextEpisodeHovered,
                 onNextEpisodeHoverChanged = onNextEpisodeHoverChanged,
                 playRecordViewModel = playRecordViewModel,
-                onSkipConfigChanged = onSkipConfigChanged
+                onSkipConfigChanged = onSkipConfigChanged,
+                smartSkipEnabled = smartSkipEnabled,
+                onSmartSkipEnabledChanged = onSmartSkipEnabledChanged,
+                isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled
             )
         }
     }
