@@ -232,6 +232,15 @@ fun PipPlayerWindow(
     val playMediaByGuid = rememberPlayMediaByGuidFunction(player = mediaPlayer)
     val currentPosition by mediaPlayer.currentPositionMillis.collectAsState()
 
+    var showSkipIntroUndoPrompt by remember { mutableStateOf(false) }
+    var skipIntroUndoCountdown by remember { mutableIntStateOf(5) }
+    var lastAutoSkippedIntroSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var lastUserSeekTargetMs by remember(playingInfoCache?.itemGuid) { mutableStateOf<Long?>(null) }
+    var pendingIntroSkipSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var introSkipSuppressedUntilMs by remember(playingInfoCache?.itemGuid) { mutableStateOf<Long?>(null) }
+    var lastIntroMonitorPosition by remember { mutableStateOf(0L) }
+    var introMonitorInitialized by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+
     var showSkipOutroPrompt by remember { mutableStateOf(false) }
     var skipOutroCancelled by remember { mutableStateOf(false) }
     var skipOutroCountdown by remember { mutableIntStateOf(5) }
@@ -239,6 +248,15 @@ fun PipPlayerWindow(
     var lastOutroMonitorPosition by remember { mutableStateOf(0L) }
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
+        showSkipIntroUndoPrompt = false
+        skipIntroUndoCountdown = 5
+        lastAutoSkippedIntroSegmentMillis = null
+        lastUserSeekTargetMs = null
+        pendingIntroSkipSegmentMillis = null
+        introSkipSuppressedUntilMs = null
+        lastIntroMonitorPosition = 0L
+        introMonitorInitialized = false
+
         showSkipOutroPrompt = false
         skipOutroCancelled = false
         skipOutroCountdown = 5
@@ -303,18 +321,97 @@ fun PipPlayerWindow(
         }
     }
 
-    var introAutoSkipped by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
     LaunchedEffect(currentPosition, resolvedIntroSegmentMillis, playbackState, isLoading) {
-        val introSegment = resolvedIntroSegmentMillis ?: return@LaunchedEffect
+        val introSegment = resolvedIntroSegmentMillis
         if (playingInfoCache?.isEpisode != true) return@LaunchedEffect
-        if (introAutoSkipped) return@LaunchedEffect
-        if (playbackState != PlaybackState.PLAYING || isLoading) return@LaunchedEffect
+        if (introSegment == null) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
 
         val startMs = introSegment.first
         val endMs = introSegment.second
-        if (currentPosition in startMs until endMs) {
-            introAutoSkipped = true
+
+        val suppressedUntil = introSkipSuppressedUntilMs
+        if (suppressedUntil != null && currentPosition >= suppressedUntil) {
+            introSkipSuppressedUntilMs = null
+        }
+
+        if (!introMonitorInitialized) {
+            introMonitorInitialized = true
+            lastIntroMonitorPosition = currentPosition
+            if (introSkipSuppressedUntilMs == null &&
+                playbackState == PlaybackState.PLAYING &&
+                !isLoading &&
+                currentPosition in startMs until endMs
+            ) {
+                pendingIntroSkipSegmentMillis = introSegment
+                mediaPlayer.seekTo(endMs)
+            }
+            return@LaunchedEffect
+        }
+
+        val delta = currentPosition - lastIntroMonitorPosition
+        val jumped = delta < 0L
+
+        val crossedIntoIntroStart = if (startMs == 0L) {
+            lastIntroMonitorPosition == 0L && currentPosition > 0L
+        } else {
+            lastIntroMonitorPosition < startMs && currentPosition >= startMs
+        }
+
+        if (!jumped &&
+            introSkipSuppressedUntilMs == null &&
+            crossedIntoIntroStart &&
+            playbackState == PlaybackState.PLAYING &&
+            !isLoading &&
+            currentPosition < endMs
+        ) {
+            pendingIntroSkipSegmentMillis = introSegment
             mediaPlayer.seekTo(endMs)
+        }
+
+        lastIntroMonitorPosition = currentPosition
+    }
+
+    LaunchedEffect(isLoading, currentPosition, resolvedIntroSegmentMillis, playbackState) {
+        if (isLoading) return@LaunchedEffect
+        if (playbackState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val introSegment = resolvedIntroSegmentMillis ?: return@LaunchedEffect
+        val seekTarget = lastUserSeekTargetMs ?: return@LaunchedEffect
+
+        val startMs = introSegment.first
+        val endMs = introSegment.second
+        if (seekTarget < startMs && introSkipSuppressedUntilMs == null && currentPosition in startMs until endMs) {
+            lastUserSeekTargetMs = null
+            pendingIntroSkipSegmentMillis = introSegment
+            mediaPlayer.seekTo(endMs)
+        }
+    }
+
+    LaunchedEffect(currentPosition, pendingIntroSkipSegmentMillis, playbackState) {
+        val pending = pendingIntroSkipSegmentMillis ?: return@LaunchedEffect
+        if (playbackState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val endMs = pending.second
+        val thresholdMs = (endMs - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = pending
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    LaunchedEffect(showSkipIntroUndoPrompt, lastAutoSkippedIntroSegmentMillis) {
+        if (showSkipIntroUndoPrompt) {
+            while (skipIntroUndoCountdown > 0) {
+                delay(1000)
+                skipIntroUndoCountdown--
+            }
+            showSkipIntroUndoPrompt = false
         }
     }
 
@@ -734,6 +831,7 @@ fun PipPlayerWindow(
                     onSeek = { ratio ->
                         isLoading = true
                         val seekPosition = (ratio * totalDuration).toLong()
+                        lastUserSeekTargetMs = seekPosition
                         mediaPlayer.seekTo(seekPosition)
                         logger.i(
                             "Seek to: ${ratio * 100}%，seekPosition: ${
@@ -775,6 +873,25 @@ fun PipPlayerWindow(
                     onCancel = {
                         skipOutroCancelled = true
                         showSkipOutroPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 56.dp, start = 12.dp)
+                )
+            }
+
+            if (showSkipIntroUndoPrompt) {
+                SkipIntroPrompt(
+                    countdown = skipIntroUndoCountdown,
+                    onCancel = {
+                        val segment = lastAutoSkippedIntroSegmentMillis
+                        if (segment != null) {
+                            introSkipSuppressedUntilMs = segment.second
+                            pendingIntroSkipSegmentMillis = null
+                            lastUserSeekTargetMs = null
+                            mediaPlayer.seekTo(segment.first)
+                        }
+                        showSkipIntroUndoPrompt = false
                     },
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -865,6 +982,38 @@ fun PipPlayerWindow(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkipIntroPrompt(
+    countdown: Int,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier) {
+        Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "已跳过片头，${countdown}s 后自动关闭",
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "取消跳过",
+                    color = Color(0xFF3B82F6),
+                    fontSize = 12.sp,
+                    modifier = Modifier.clickable { onCancel() }
+                )
             }
         }
     }

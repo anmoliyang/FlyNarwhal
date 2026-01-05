@@ -441,6 +441,16 @@ fun PlayerOverlay(
 
     var isSeeking by remember { mutableStateOf(false) }
 
+    // Skip Intro Undo State
+    var showSkipIntroUndoPrompt by remember { mutableStateOf(false) }
+    var skipIntroUndoCountdown by remember { mutableIntStateOf(5) }
+    var lastAutoSkippedIntroSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var lastUserSeekTargetMs by remember(playingInfoCache?.itemGuid) { mutableStateOf<Long?>(null) }
+    var pendingIntroSkipSegmentMillis by remember(playingInfoCache?.itemGuid) { mutableStateOf<Pair<Long, Long>?>(null) }
+    var introSkipSuppressedUntilMs by remember(playingInfoCache?.itemGuid) { mutableStateOf<Long?>(null) }
+    var lastIntroMonitorPosition by remember { mutableLongStateOf(0L) }
+    var introMonitorInitialized by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+
     // Skip Outro State
     var showSkipOutroPrompt by remember { mutableStateOf(false) }
     var skipOutroCancelled by remember { mutableStateOf(false) }
@@ -449,6 +459,15 @@ fun PlayerOverlay(
     var lastOutroMonitorPosition by remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(playingInfoCache?.itemGuid) {
+        showSkipIntroUndoPrompt = false
+        skipIntroUndoCountdown = 5
+        lastAutoSkippedIntroSegmentMillis = null
+        lastUserSeekTargetMs = null
+        pendingIntroSkipSegmentMillis = null
+        introSkipSuppressedUntilMs = null
+        lastIntroMonitorPosition = 0L
+        introMonitorInitialized = false
+
         showSkipOutroPrompt = false
         skipOutroCancelled = false
         skipOutroCountdown = 5
@@ -513,19 +532,97 @@ fun PlayerOverlay(
         }
     }
 
-    // Intro Skip
-    var introAutoSkipped by remember(playingInfoCache?.itemGuid) { mutableStateOf(false) }
+    // Intro Skip Monitor (trigger only on natural crossing into intro start)
     LaunchedEffect(currentPosition, resolvedIntroSegmentMillis, playState, isSeeking) {
-        val introSegment = resolvedIntroSegmentMillis ?: return@LaunchedEffect
-        if (introAutoSkipped) return@LaunchedEffect
-        if (playState != PlaybackState.PLAYING || isSeeking) return@LaunchedEffect
+        val introSegment = resolvedIntroSegmentMillis
+        if (introSegment == null) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
 
         val startMs = introSegment.first
         val endMs = introSegment.second
-        if (currentPosition in startMs until endMs) {
-            introAutoSkipped = true
+
+        val suppressedUntil = introSkipSuppressedUntilMs
+        if (suppressedUntil != null && currentPosition >= suppressedUntil) {
+            introSkipSuppressedUntilMs = null
+        }
+
+        if (!introMonitorInitialized) {
+            introMonitorInitialized = true
+            lastIntroMonitorPosition = currentPosition
+            if (introSkipSuppressedUntilMs == null &&
+                playState == PlaybackState.PLAYING &&
+                !isSeeking &&
+                currentPosition in startMs until endMs
+            ) {
+                pendingIntroSkipSegmentMillis = introSegment
+                mediaPlayer.seekTo(endMs)
+            }
+            return@LaunchedEffect
+        }
+
+        val delta = currentPosition - lastIntroMonitorPosition
+        val jumped = delta < 0L
+
+        val crossedIntoIntroStart = if (startMs == 0L) {
+            lastIntroMonitorPosition == 0L && currentPosition > 0L
+        } else {
+            lastIntroMonitorPosition < startMs && currentPosition >= startMs
+        }
+
+        if (!jumped &&
+            introSkipSuppressedUntilMs == null &&
+            crossedIntoIntroStart &&
+            playState == PlaybackState.PLAYING &&
+            !isSeeking &&
+            currentPosition < endMs
+        ) {
+            pendingIntroSkipSegmentMillis = introSegment
             mediaPlayer.seekTo(endMs)
-            toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+        }
+
+        lastIntroMonitorPosition = currentPosition
+    }
+
+    LaunchedEffect(isSeeking, currentPosition, resolvedIntroSegmentMillis, playState) {
+        if (isSeeking) return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val introSegment = resolvedIntroSegmentMillis ?: return@LaunchedEffect
+        val seekTarget = lastUserSeekTargetMs ?: return@LaunchedEffect
+
+        val startMs = introSegment.first
+        val endMs = introSegment.second
+        if (seekTarget < startMs && introSkipSuppressedUntilMs == null && currentPosition in startMs until endMs) {
+            lastUserSeekTargetMs = null
+            pendingIntroSkipSegmentMillis = introSegment
+            mediaPlayer.seekTo(endMs)
+        }
+    }
+
+    LaunchedEffect(currentPosition, pendingIntroSkipSegmentMillis, playState) {
+        val pending = pendingIntroSkipSegmentMillis ?: return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val endMs = pending.second
+        val thresholdMs = (endMs - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = pending
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    LaunchedEffect(showSkipIntroUndoPrompt, lastAutoSkippedIntroSegmentMillis) {
+        if (showSkipIntroUndoPrompt) {
+            while (skipIntroUndoCountdown > 0) {
+                delay(1000)
+                skipIntroUndoCountdown--
+            }
+            showSkipIntroUndoPrompt = false
         }
     }
 
@@ -1309,6 +1406,25 @@ fun PlayerOverlay(
                 }
             }
 
+            if (showSkipIntroUndoPrompt) {
+                SkipIntroPrompt(
+                    countdown = skipIntroUndoCountdown,
+                    onCancel = {
+                        val segment = lastAutoSkippedIntroSegmentMillis
+                        if (segment != null) {
+                            introSkipSuppressedUntilMs = segment.second
+                            pendingIntroSkipSegmentMillis = null
+                            lastUserSeekTargetMs = null
+                            mediaPlayer.seekTo(segment.first)
+                        }
+                        showSkipIntroUndoPrompt = false
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(bottom = 120.dp, start = 32.dp)
+                )
+            }
+
             if (showSkipOutroPrompt) {
                 SkipOutroPrompt(
                     countdown = skipOutroCountdown,
@@ -1395,6 +1511,7 @@ fun PlayerOverlay(
                         playerManager.setLoading(true)
                         isSeeking = true
                         val seekPosition = (newProgress * totalDuration).toLong()
+                        lastUserSeekTargetMs = seekPosition
                         mediaPlayer.seekTo(seekPosition)
                         logger.i(
                             "Seek to: ${newProgress * 100}%，seekPosition: ${
@@ -1650,6 +1767,42 @@ private fun SkipOutroPrompt(
             ) {
                 Text(
                     text = "${countdown}s 后将自动跳过片尾并播放下集",
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "取消跳过",
+                    color = Color(0xFF3B82F6),
+                    fontSize = 14.sp,
+                    modifier = Modifier.clickable {
+                        onCancel()
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SkipIntroPrompt(
+    countdown: Int,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = Color(0xFF2B2B2B).copy(alpha = 0.9f),
+            contentColor = Color.White
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "已跳过片头，${countdown}s 后自动关闭",
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.width(12.dp))
