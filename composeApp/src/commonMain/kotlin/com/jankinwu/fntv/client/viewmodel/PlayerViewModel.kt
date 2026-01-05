@@ -58,7 +58,12 @@ class PlayerViewModel : ViewModel() {
         }
         _playingInfoCache.value = playingInfoCache
         if (playingInfoCache != null && AppSettingsStore.smartAnalysisEnabled && _smartSkipEnabled.value) {
-            checkAnalysisStatus(playingInfoCache.currentVideoStream.mediaGuid)
+            val episodeGuid = playingInfoCache.currentVideoStream.mediaGuid
+            if (episodeGuid.isNotBlank()) {
+                checkAnalysisStatus(episodeGuid)
+            } else {
+                cancelAnalysisCheck()
+            }
         } else {
             cancelAnalysisCheck()
         }
@@ -68,21 +73,21 @@ class PlayerViewModel : ViewModel() {
         PlayingSettingsStore.smartSkipEnabled = enabled
         _smartSkipEnabled.value = enabled
         if (enabled && AppSettingsStore.smartAnalysisEnabled) {
-            val guid = playingInfoCache.value?.currentVideoStream?.mediaGuid
-            if (guid != null) {
-                checkAnalysisStatus(guid)
+            val episodeGuid = playingInfoCache.value?.currentVideoStream?.mediaGuid
+            if (!episodeGuid.isNullOrBlank()) {
+                checkAnalysisStatus(episodeGuid)
             }
         } else {
             cancelAnalysisCheck()
         }
     }
 
-    private fun checkAnalysisStatus(guid: String) {
+    private fun checkAnalysisStatus(guid: String, type: String = "EPISODE") {
         analysisJob?.cancel()
         analysisJob = viewModelScope.launch {
             while (isActive) {
                 try {
-                    val statusResult = flyNarwhalApi.getStatus("EPISODE", guid)
+                    val statusResult = flyNarwhalApi.getStatus(type, guid)
                     if (statusResult.isSuccess()) {
                         val status = statusResult.data
                         logger.i { "Analysis status: $status" }

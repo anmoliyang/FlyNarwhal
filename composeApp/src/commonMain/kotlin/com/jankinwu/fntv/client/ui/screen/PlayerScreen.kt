@@ -1383,6 +1383,8 @@ fun PlayerOverlay(
                     videoProgress = videoProgress,
                     totalDuration = totalDuration,
                     playingInfoCache = playingInfoCache,
+                    introSegmentMillis = resolvedIntroSegmentMillis,
+                    creditsSegmentMillis = resolvedCreditsSegmentMillis,
                     isoTagData = isoTagData,
                     lastVolume = lastVolume,
                     onProgressBarHoverChanged = { isProgressBarHovered = it },
@@ -3125,6 +3127,8 @@ fun PlayerBottomBar(
     videoProgress: Float,
     totalDuration: Long,
     playingInfoCache: PlayingInfoCache?,
+    introSegmentMillis: Pair<Long, Long>? = null,
+    creditsSegmentMillis: Pair<Long, Long>? = null,
     isoTagData: IsoTagData,
     lastVolume: Float,
     onProgressBarHoverChanged: (Boolean) -> Unit,
@@ -3185,8 +3189,8 @@ fun PlayerBottomBar(
                 totalDuration = playerManager.playerState.duration,
                 onSeek = onSeek,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0,
-                skipEnding = playingInfoCache?.playConfig?.skipEnding ?: 0
+                introSegmentMillis = introSegmentMillis,
+                creditsSegmentMillis = creditsSegmentMillis
             )
             // 播放器控制行
             PlayerControlRow(

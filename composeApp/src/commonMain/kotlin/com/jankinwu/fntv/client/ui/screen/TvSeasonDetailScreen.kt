@@ -56,13 +56,17 @@ import com.jankinwu.fntv.client.data.model.response.PersonListResponse
 import com.jankinwu.fntv.client.data.model.response.PlayInfoResponse
 import com.jankinwu.fntv.client.data.model.response.QueryTagResponse
 import com.jankinwu.fntv.client.data.store.AccountDataCache
+import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.ui.component.common.BackButton
 import com.jankinwu.fntv.client.ui.component.common.CastScrollRow
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingError
 import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
+import com.jankinwu.fntv.client.ui.component.common.MediaMoreFlyout
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
+import com.jankinwu.fntv.client.ui.component.common.ToastType
+import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
 import com.jankinwu.fntv.client.ui.component.detail.EpisodesScrollRow
@@ -82,6 +86,7 @@ import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
 import com.jankinwu.fntv.client.viewmodel.PersonListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -321,8 +326,12 @@ fun TvEpisodeBody(
     val store = LocalStore.current
     val windowHeight = store.windowHeightState
     val toastManager = LocalToastManager.current
+    val smartAnalysisEnabled = AppSettingsStore.smartAnalysisEnabled
+    val smartAnalysisViewModel: SmartAnalysisViewModel = koinViewModel()
+    val analyzeState by smartAnalysisViewModel.analyzeState.collectAsState()
     var isWatched by remember(itemData?.isWatched == 1) { mutableStateOf(itemData?.isWatched == 1) }
     var showDescriptionDialog by remember { mutableStateOf(false) }
+    var isManageVersionsDialogVisible by remember { mutableStateOf(false) }
     val watchedViewModel: WatchedViewModel = koinViewModel<WatchedViewModel>()
     val watchedUiState by watchedViewModel.uiState.collectAsState()
     val itemViewModel: ItemViewModel = koinViewModel()
@@ -342,6 +351,22 @@ fun TvEpisodeBody(
 
     val painter = rememberAsyncImagePainter(model = imageRequest)
     val painterState by painter.state.collectAsState()
+
+    LaunchedEffect(analyzeState) {
+        when (val state = analyzeState) {
+            is UiState.Success -> {
+                toastManager.showToast(state.data, ToastType.Success)
+                smartAnalysisViewModel.clearState()
+            }
+
+            is UiState.Error -> {
+                toastManager.showToast(state.message, ToastType.Failed)
+                smartAnalysisViewModel.clearState()
+            }
+
+            else -> Unit
+        }
+    }
 
     // 监听已观看操作结果并显示提示
     LaunchedEffect(watchedUiState) {
@@ -509,12 +534,23 @@ fun TvEpisodeBody(
                                                 )
                                             }
                                         )
-                                        CircleIconButton(
-                                            icon = Icons.Regular.MoreHorizontal,
-                                            description = "更多",
-                                            iconColor = FluentTheme.colors.text.text.primary,
-                                            onClick = { /* TODO */ }
-                                        )
+                                        MediaMoreFlyout(
+                                            onManageVersionsClick = { isManageVersionsDialogVisible = true },
+                                            onSmartAnalysisClick = if (smartAnalysisEnabled) {
+                                                {
+                                                    val tvTitle = itemData.tvTitle
+                                                    val seasonNumber = playInfo?.item?.seasonNumber ?: 0
+                                                    smartAnalysisViewModel.analyzeSeason(guid, tvTitle, seasonNumber)
+                                                }
+                                            } else null
+                                        ) { onClick ->
+                                            CircleIconButton(
+                                                icon = Icons.Regular.MoreHorizontal,
+                                                description = "更多",
+                                                iconColor = FluentTheme.colors.text.text.primary,
+                                                onClick = onClick
+                                            )
+                                        }
                                     }
 
                                     // Description
@@ -583,5 +619,15 @@ fun TvEpisodeBody(
                 onDismiss = { showDescriptionDialog = false }
             )
         }
+
+        VersionManagementDialog(
+            visible = isManageVersionsDialogVisible,
+            guid = guid,
+            itemTitle = itemData?.title ?: "",
+            onDismiss = { isManageVersionsDialogVisible = false },
+            onDelete = { _, _ -> },
+            onUnmatchConfirmed = { _, _ -> },
+            onMatchToOther = { _, _ -> }
+        )
     }
 }

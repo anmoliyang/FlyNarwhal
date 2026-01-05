@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +44,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -68,10 +71,12 @@ import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import com.jankinwu.fntv.client.enums.FnTvMediaType
 import com.jankinwu.fntv.client.manager.PlayerResourceManager
 import com.jankinwu.fntv.client.ui.providable.IsoTagData
+import com.jankinwu.fntv.client.ui.selectedSwitcherStyle
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import io.github.composefluent.component.Switcher
+import io.github.composefluent.component.SwitcherDefaults
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -333,6 +338,8 @@ fun SettingsFlyoutContent(
                 "Main" -> MainSettingsScreen(
                     playingInfoCache = playingInfoCache,
                     isoTagData = isoTagData,
+                    smartSkipEnabled = smartSkipEnabled,
+                    isSmartAnalysisGloballyEnabled = isSmartAnalysisGloballyEnabled,
                     //                    currentVideoAspectRatio = currentVideoAspectRatio,
                     onNavigateToAudio = { onNavigate("Audio") },
                     onNavigateToWindowAspectRatio = { onNavigate("WindowAspectRatio") },
@@ -375,6 +382,8 @@ fun SettingsFlyoutContent(
 fun MainSettingsScreen(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
+    smartSkipEnabled: Boolean,
+    isSmartAnalysisGloballyEnabled: Boolean,
 //    currentVideoAspectRatio: AspectRatioMode?,
     onNavigateToAudio: () -> Unit,
     onNavigateToWindowAspectRatio: () -> Unit,
@@ -417,6 +426,7 @@ fun MainSettingsScreen(
             val skipOpening = playingInfoCache.playConfig?.skipOpening ?: 0
             val skipEnding = playingInfoCache.playConfig?.skipEnding ?: 0
             val skipText = when {
+                isSmartAnalysisGloballyEnabled && smartSkipEnabled -> "智能跳过"
                 skipOpening > 0 && skipEnding > 0 -> "跳过片头片尾"
                 skipOpening > 0 -> "已设置片头"
                 skipEnding > 0 -> "已设置片尾"
@@ -787,11 +797,28 @@ fun SkipConfigSettingsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("智能检测片头/片尾", color = DefaultTextColor, fontSize = 14.sp)
-                Switcher(
+                Text("智能跳过片头/片尾", color = DefaultTextColor, fontSize = 14.sp)
+                Switch(
                     checked = smartSkipEnabled,
-                    onCheckStateChange = { onSmartSkipEnabledChanged(it) }
+                    onCheckedChange = { onSmartSkipEnabledChanged(it) },
+                    modifier = Modifier.scale(0.7f).height(30.dp),
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = SelectedTextColor,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.5f),
+                        uncheckedBorderColor = Color.Transparent
+                    )
                 )
+//                Switcher(
+//                    checked = smartSkipEnabled,
+//                    onCheckStateChange = { onSmartSkipEnabledChanged(it) },
+//                    styles = if (smartSkipEnabled) {
+//                        selectedSwitcherStyle()
+//                    } else {
+//                        SwitcherDefaults.defaultSwitcherStyle()
+//                    },
+//                )
             }
         }
 

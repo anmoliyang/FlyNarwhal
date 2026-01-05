@@ -650,6 +650,18 @@ fun PipPlayerWindow(
                 }
 
                 val totalDuration = LocalPlayerManager.current.playerState.duration
+                val introSegmentMillis = (playingInfoCache?.playConfig?.skipOpening ?: 0)
+                    .takeIf { it > 0 }
+                    ?.let { 0L to it * 1000L }
+                val creditsSegmentMillis = run {
+                    val skipEnding = (playingInfoCache?.playConfig?.skipEnding ?: 0).coerceAtLeast(0)
+                    if (skipEnding > 0 && totalDuration > 0) {
+                        val startMs = (totalDuration - skipEnding * 1000L).coerceAtLeast(0L)
+                        startMs to totalDuration
+                    } else {
+                        null
+                    }
+                }
                 VideoPlayerProgressBar(
                     player = mediaPlayer,
                     totalDuration = totalDuration,
@@ -686,8 +698,8 @@ fun PipPlayerWindow(
                         .padding(horizontal = 12.dp)
                         .pointerHoverIcon(PointerIcon.Hand)
                         .fillMaxWidth(),
-                    skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0,
-                    skipEnding = playingInfoCache?.playConfig?.skipEnding ?: 0
+                    introSegmentMillis = introSegmentMillis,
+                    creditsSegmentMillis = creditsSegmentMillis
                 )
             }
 

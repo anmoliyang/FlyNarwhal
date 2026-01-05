@@ -434,11 +434,22 @@ fun MoviePoster(
             ) {
                 MediaMoreFlyout(
                     onManageVersionsClick = { isManageVersionsDialogVisible = true },
-                    onSmartAnalysisClick = if (type == FnTvMediaType.SEASON.value && smartAnalysisEnabled) {
+                    onSmartAnalysisClick = if (smartAnalysisEnabled && (type == FnTvMediaType.SEASON.value || type == FnTvMediaType.TV.value)) {
                         {
-                            val number = seasonNumber ?: 0
-                            val mediaTitle = mediaTitle ?: ""
-                            smartAnalysisViewModel.analyzeSeason(guid, mediaTitle, number)
+                            when (type) {
+                                FnTvMediaType.SEASON.value -> {
+                                    val number = seasonNumber ?: 0
+                                    val tvTitle = mediaTitle?.takeIf { it.isNotBlank() } ?: title
+                                    smartAnalysisViewModel.analyzeSeason(guid, tvTitle, number)
+                                }
+
+                                FnTvMediaType.TV.value -> {
+                                    val tvTitle = mediaTitle?.takeIf { it.isNotBlank() } ?: title
+                                    smartAnalysisViewModel.analyzeTv(guid, tvTitle)
+                                }
+
+                                else -> Unit
+                            }
                         }
                     } else null
                 ){ onClick ->
