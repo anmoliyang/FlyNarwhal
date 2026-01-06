@@ -1,12 +1,22 @@
 package com.jankinwu.fntv.client.data.model.response
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 /**
  * Generic response wrapper for Smart Analysis API.
  */
 data class SmartAnalysisResult<T>(
-    val code: Int,
-    val msg: String,
-    val data: T?,
+    @get:JsonProperty("code")
+    @param:JsonProperty("code")
+    val code: Int = 0,
+    @get:JsonProperty("msg")
+    @param:JsonProperty("msg")
+    val msg: String = "",
+    @get:JsonProperty("data")
+    @param:JsonProperty("data")
+    val data: T? = null,
+    @get:JsonProperty("success")
+    @param:JsonProperty("success")
     val success: Boolean? = null
 ) {
     /**

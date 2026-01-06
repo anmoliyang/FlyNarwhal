@@ -7,18 +7,23 @@ import com.fasterxml.jackson.annotation.JsonProperty
  */
 data class AnalyzeRequest(
     @param:JsonProperty("season_guid")
+    @get:JsonProperty("season_guid")
     val seasonGuid: String,
 
     @param:JsonProperty("season_path")
+    @get:JsonProperty("season_path")
     val seasonPath: String,
 
     @param:JsonProperty("episodes")
+    @get:JsonProperty("episodes")
     val episodes: List<QueuedEpisode>,
 
     @param:JsonProperty("tv_title")
+    @get:JsonProperty("tv_title")
     val tvTitle: String,
 
     @param:JsonProperty("season_number")
+    @get:JsonProperty("season_number")
     val seasonNumber: Int
 )
 
@@ -27,13 +32,17 @@ data class AnalyzeRequest(
  */
 data class QueuedEpisode(
     @param:JsonProperty("guid")
+    @get:JsonProperty("guid")
     val guid: String,
     @param:JsonProperty("file_path")
+    @get:JsonProperty("file_path")
     val filePath: String,
     @param:JsonProperty("episode_number")
+    @get:JsonProperty("episode_number")
     val episodeNumber: Int,
 
     @param:JsonProperty("season_number")
+    @get:JsonProperty("season_number")
     val seasonNumber: Int
 )
 
@@ -42,7 +51,9 @@ data class QueuedEpisode(
  */
 data class UpdateSeasonStatusRequest(
     @param:JsonProperty("seasonGuids")
+    @get:JsonProperty("seasonGuids")
     val seasonGuids: List<String>,
     @param:JsonProperty("status")
+    @get:JsonProperty("status")
     val status: String
 )
