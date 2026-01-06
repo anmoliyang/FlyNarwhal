@@ -67,7 +67,6 @@ import com.jankinwu.fntv.client.ui.component.common.ImgLoadingProgressRing
 import com.jankinwu.fntv.client.ui.component.common.MediaMoreFlyout
 import com.jankinwu.fntv.client.ui.component.common.ToastHost
 import com.jankinwu.fntv.client.ui.component.common.ToastType
-import com.jankinwu.fntv.client.ui.component.common.dialog.VersionManagementDialog
 import com.jankinwu.fntv.client.ui.component.common.rememberToastManager
 import com.jankinwu.fntv.client.ui.component.detail.DetailPlayButton
 import com.jankinwu.fntv.client.ui.component.detail.DetailTags
@@ -304,7 +303,7 @@ fun TvSeasonDetailScreen(
     }
     CompositionLocalProvider(
         LocalIsoTagData provides isoTagData,
-        LocalToastManager provides toastManager
+        LocalToastManager provides toastManager,
     ) {
         TvEpisodeBody(
             itemData = itemData,
@@ -585,14 +584,15 @@ fun TvEpisodeBody(
                                             }
                                         )
                                         MediaMoreFlyout(
-                                            onManageVersionsClick = { isManageVersionsDialogVisible = true },
+//                                            onManageVersionsClick = { isManageVersionsDialogVisible = true },
                                             onSmartAnalysisClick = if (smartAnalysisEnabled) {
                                                 {
                                                     val tvTitle = itemData.tvTitle
                                                     val seasonNumber = playInfo?.item?.seasonNumber ?: 0
                                                     smartAnalysisViewModel.analyzeSeason(guid, tvTitle, seasonNumber)
                                                 }
-                                            } else null
+                                            } else null,
+                                            type = itemData.type
                                         ) { onClick ->
                                             CircleIconButton(
                                                 icon = Icons.Regular.MoreHorizontal,
@@ -670,14 +670,14 @@ fun TvEpisodeBody(
             )
         }
 
-        VersionManagementDialog(
-            visible = isManageVersionsDialogVisible,
-            guid = guid,
-            itemTitle = itemData?.title ?: "",
-            onDismiss = { isManageVersionsDialogVisible = false },
-            onDelete = { _, _ -> },
-            onUnmatchConfirmed = { _, _ -> },
-            onMatchToOther = { _, _ -> }
-        )
+//        VersionManagementDialog(
+//            visible = isManageVersionsDialogVisible,
+//            guid = guid,
+//            itemTitle = itemData?.title ?: "",
+//            onDismiss = { isManageVersionsDialogVisible = false },
+//            onDelete = { _, _ -> },
+//            onUnmatchConfirmed = { _, _ -> },
+//            onMatchToOther = { _, _ -> }
+//        )
     }
 }
