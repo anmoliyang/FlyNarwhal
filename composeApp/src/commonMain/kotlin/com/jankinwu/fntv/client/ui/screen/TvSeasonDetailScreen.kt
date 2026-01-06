@@ -88,8 +88,8 @@ import com.jankinwu.fntv.client.viewmodel.GenresViewModel
 import com.jankinwu.fntv.client.viewmodel.ItemViewModel
 import com.jankinwu.fntv.client.viewmodel.PersonListViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
-import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.SmartAnalysisStatusViewModel
+import com.jankinwu.fntv.client.viewmodel.SmartAnalysisViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.WatchedViewModel
@@ -361,6 +361,11 @@ fun TvEpisodeBody(
         when (val state = analyzeState) {
             is UiState.Success -> {
                 toastManager.showToast(state.data, ToastType.Success)
+                val shouldStartStatusPolling = smartAnalysisEnabled && itemData?.type == FnTvMediaType.SEASON.value
+                if (shouldStartStatusPolling) {
+                    delay(1000)
+                    smartAnalysisStatusViewModel.startPolling(type = "SEASON", guid = guid, force = true)
+                }
                 smartAnalysisViewModel.clearState()
             }
 
@@ -582,7 +587,6 @@ fun TvEpisodeBody(
                                                     val tvTitle = itemData.tvTitle
                                                     val seasonNumber = playInfo?.item?.seasonNumber ?: 0
                                                     smartAnalysisViewModel.analyzeSeason(guid, tvTitle, seasonNumber)
-                                                    smartAnalysisStatusViewModel.startPolling(type = "SEASON", guid = guid)
                                                 }
                                             } else null
                                         ) { onClick ->

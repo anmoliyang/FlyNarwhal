@@ -4,6 +4,8 @@ import androidx.lifecycle.viewModelScope
 import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.request.AnalyzeRequest
 import com.jankinwu.fntv.client.data.model.request.QueuedEpisode
+import com.jankinwu.fntv.client.data.model.request.UpdateSeasonStatusRequest
+import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
 import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import kotlinx.coroutines.delay
@@ -81,7 +83,19 @@ class SmartAnalysisViewModel : BaseViewModel() {
         seasonGuid: String,
         tvTitle: String,
         seasonNumber: Int,
+        shouldUpdatePreparingStatus: Boolean = true,
     ) {
+        if (shouldUpdatePreparingStatus) {
+            val updateStatusResult = flyNarwhalApi.updateSeasonStatus(
+                UpdateSeasonStatusRequest(
+                    seasonGuids = listOf(seasonGuid),
+                    status = AnalysisStatus.PREPARING.name
+                )
+            )
+            if (!updateStatusResult.isSuccess()) {
+                throw Exception(updateStatusResult.msg)
+            }
+        }
         val request = buildAnalyzeRequest(
             seasonGuid = seasonGuid,
             tvTitle = tvTitle,
@@ -118,6 +132,16 @@ class SmartAnalysisViewModel : BaseViewModel() {
                     throw Exception("No seasons found to analyze")
                 }
 
+                val updateStatusResult = flyNarwhalApi.updateSeasonStatus(
+                    UpdateSeasonStatusRequest(
+                        seasonGuids = seasons.map { it.guid },
+                        status = AnalysisStatus.PREPARING.name
+                    )
+                )
+                if (!updateStatusResult.isSuccess()) {
+                    throw Exception(updateStatusResult.msg)
+                }
+
                 val normalizedTitle = tvTitle.ifBlank {
                     seasons.firstOrNull()?.parentTitle ?: seasons.firstOrNull()?.tvTitle ?: ""
                 }
@@ -129,7 +153,8 @@ class SmartAnalysisViewModel : BaseViewModel() {
                         startSeasonAnalysis(
                             seasonGuid = season.guid,
                             tvTitle = normalizedTitle,
-                            seasonNumber = season.seasonNumber
+                            seasonNumber = season.seasonNumber,
+                            shouldUpdatePreparingStatus = false
                         )
                     } catch (e: Exception) {
                         logger.e(e) { "Failed to start analysis for season ${season.guid}" }
