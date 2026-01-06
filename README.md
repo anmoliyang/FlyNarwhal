@@ -175,6 +175,8 @@
 
 @[玉尺书生](https://club.fnnas.com/home.php?mod=space&uid=6482) @[MR_XIAOBO](https://github.com/xiaobonet) @[汪仔饭](https://club.fnnas.com/home.php?mod=space&uid=5021) @*观如
 
+感谢 [一西啊](https://club.fnnas.com/home.php?mod=space&uid=785) 为此项目 UI 设计做出的贡献
+
 ## 🌟 Star History
 
 <a href="https://github.com/FNOSP/FlyNarwhal/stargazers" target="_blank" style="display: block" align="center">
