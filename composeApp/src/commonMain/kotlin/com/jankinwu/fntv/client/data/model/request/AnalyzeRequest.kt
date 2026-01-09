@@ -50,8 +50,8 @@ data class QueuedEpisode(
  * Request model for updating analysis status for multiple seasons.
  */
 data class UpdateSeasonStatusRequest(
-    @param:JsonProperty("seasonGuids")
-    @get:JsonProperty("seasonGuids")
+    @param:JsonProperty("season_guids")
+    @get:JsonProperty("season_guids")
     val seasonGuids: List<String>,
     @param:JsonProperty("status")
     @get:JsonProperty("status")
