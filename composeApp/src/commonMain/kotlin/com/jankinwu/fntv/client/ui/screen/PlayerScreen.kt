@@ -223,6 +223,16 @@ class PlayerManager {
     var keyFocusRequestSerial: Int by mutableIntStateOf(0)
     var isPipMode: Boolean by mutableStateOf(false)
     var danmakuResetNonce: Int by mutableIntStateOf(0)
+    // Initial resume target in player timeline (history progress). Intro-skip is blocked until reached.
+    var initialResumePositionMs: Long? by mutableStateOf(null)
+    // Auto-skipped intro segment decided during startup/resume. Used to show the undo prompt.
+    var startupAutoSkippedIntroSegmentMillis: Pair<Long, Long>? by mutableStateOf(null)
+    var initialSeekTargetMs: Long? by mutableStateOf(null)
+    var initialSeekCommandSent: Boolean by mutableStateOf(false)
+    var initialSeekCommandWallTimeMs: Long by mutableLongStateOf(0L)
+    var initialSeekStableSinceWallTimeMs: Long by mutableLongStateOf(0L)
+    var initialSeekLastObservedPositionMs: Long by mutableLongStateOf(0L)
+    var initialSeekCompleted: Boolean by mutableStateOf(true)
 
     fun requestKeyFocus() {
         keyFocusRequestSerial++
@@ -432,6 +442,13 @@ fun PlayerOverlay(
                 // 2. Play new media
                 try {
                     playerManager.setLoading(true)
+                    playerManager.initialSeekTargetMs = null
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = null
                     playMedia(
                         guid = episodeGuid,
                         player = mediaPlayer,
@@ -494,12 +511,81 @@ fun PlayerOverlay(
         introSkipSuppressedUntilMs = null
         lastIntroMonitorPosition = 0L
         introMonitorInitialized = false
+        playerManager.startupAutoSkippedIntroSegmentMillis = null
 
         showSkipOutroPrompt = false
         skipOutroCancelled = false
         skipOutroCountdown = 5
         showEndScreen = false
         lastOutroMonitorPosition = 0L
+    }
+
+    LaunchedEffect(
+        currentPosition,
+        playState,
+        playerManager.startupAutoSkippedIntroSegmentMillis
+    ) {
+        val segment = playerManager.startupAutoSkippedIntroSegmentMillis ?: return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val thresholdMs = (segment.second - 200L).coerceAtLeast(0L)
+        if (currentPosition >= thresholdMs) {
+            playerManager.startupAutoSkippedIntroSegmentMillis = null
+            pendingIntroSkipSegmentMillis = null
+            lastAutoSkippedIntroSegmentMillis = segment
+            showSkipIntroUndoPrompt = true
+            skipIntroUndoCountdown = 5
+        }
+    }
+
+    LaunchedEffect(
+        currentPosition,
+        playState,
+        playerManager.initialResumePositionMs,
+        playerManager.initialSeekTargetMs,
+        playerManager.initialSeekCommandSent,
+        playerManager.initialSeekCommandWallTimeMs,
+        playerManager.initialSeekStableSinceWallTimeMs,
+        playerManager.initialSeekLastObservedPositionMs,
+        playerManager.initialSeekCompleted
+    ) {
+        if (playerManager.initialSeekCompleted) return@LaunchedEffect
+        if (!playerManager.initialSeekCommandSent) return@LaunchedEffect
+        if (playState != PlaybackState.PLAYING) return@LaunchedEffect
+
+        val resumeTarget = playerManager.initialResumePositionMs ?: return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val lastObservedPosition = playerManager.initialSeekLastObservedPositionMs
+        val largeBackwardJump = lastObservedPosition > 0L && (lastObservedPosition - currentPosition) > 1500L
+        if (largeBackwardJump) {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val nearTarget = kotlin.math.abs(currentPosition - resumeTarget) <= 800L
+        val beyondTarget = currentPosition >= (resumeTarget - 500L).coerceAtLeast(0L)
+        if (nearTarget || beyondTarget) {
+            if (playerManager.initialSeekStableSinceWallTimeMs == 0L) {
+                playerManager.initialSeekStableSinceWallTimeMs = now
+            }
+        } else {
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+        }
+
+        val stableSince = playerManager.initialSeekStableSinceWallTimeMs
+        val commandAt = playerManager.initialSeekCommandWallTimeMs
+        val stableEnough = stableSince > 0L && (now - stableSince) >= 200L
+        val commandOldEnough = commandAt > 0L && (now - commandAt) >= 300L
+        if (stableEnough && commandOldEnough) {
+            playerManager.initialSeekCompleted = true
+            playerManager.initialSeekTargetMs = null
+            playerManager.initialResumePositionMs = null
+            playerManager.initialSeekCommandSent = false
+            playerManager.initialSeekCommandWallTimeMs = 0L
+            playerManager.initialSeekStableSinceWallTimeMs = 0L
+            playerManager.initialSeekLastObservedPositionMs = 0L
+        }
+
+        playerManager.initialSeekLastObservedPositionMs = currentPosition
     }
 
     val totalDuration = remember(playerManager.playerState.itemGuid) {
@@ -560,9 +646,24 @@ fun PlayerOverlay(
     }
 
     // Intro Skip Monitor (trigger only on natural crossing into intro start)
-    LaunchedEffect(currentPosition, resolvedIntroSegmentMillis, playState, isSeeking) {
+    LaunchedEffect(
+        currentPosition,
+        resolvedIntroSegmentMillis,
+        playState,
+        isSeeking,
+        playerManager.initialSeekCompleted,
+        playerManager.initialSeekCommandSent,
+        playerManager.initialResumePositionMs,
+        playingInfoCache?.itemGuid
+    ) {
         val introSegment = resolvedIntroSegmentMillis
         if (introSegment == null) {
+            lastIntroMonitorPosition = currentPosition
+            introMonitorInitialized = false
+            return@LaunchedEffect
+        }
+
+        if (!playerManager.initialSeekCompleted) {
             lastIntroMonitorPosition = currentPosition
             introMonitorInitialized = false
             return@LaunchedEffect
@@ -991,13 +1092,26 @@ fun PlayerOverlay(
                             )
                         }
                             ?: MediaExtraFiles()
+                    val startPos = mediaPlayer.getCurrentPositionMillis()
+                    playerManager.initialSeekTargetMs = startPos
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = startPos
                     startPlayback(
                         mediaPlayer,
                         newPlayLink,
-                        mediaPlayer.getCurrentPositionMillis(),
+                        startPos,
                         extraFiles,
                         true, // isM3u8
-                        seekToWithDanmakuReset
+                        onSeekTo = { positionMillis ->
+                            playerManager.initialSeekCommandSent = true
+                            playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                            playerManager.initialSeekStableSinceWallTimeMs = 0L
+                            seekToWithDanmakuReset(positionMillis)
+                        }
                     )
                 }
             }
@@ -1026,13 +1140,25 @@ fun PlayerOverlay(
                         cache.currentSubtitleStream?.let { getMediaExtraFiles(it, link) }
                             ?: MediaExtraFiles()
 //                    mediaPlayer.stopPlayback()
+                    playerManager.initialSeekTargetMs = startPos
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCommandWallTimeMs = 0L
+                    playerManager.initialSeekStableSinceWallTimeMs = 0L
+                    playerManager.initialSeekLastObservedPositionMs = 0L
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = startPos
                     startPlayback(
                         mediaPlayer,
                         link,
                         start,
                         extraFiles,
                         false,
-                        seekToWithDanmakuReset
+                        onSeekTo = { positionMillis ->
+                            playerManager.initialSeekCommandSent = true
+                            playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                            playerManager.initialSeekStableSinceWallTimeMs = 0L
+                            seekToWithDanmakuReset(positionMillis)
+                        }
                     ) // isM3u8 = false for direct link (usually)
                 }
                 mediaPViewModel.clearError()
@@ -1490,7 +1616,7 @@ fun PlayerOverlay(
                             val skipOpening = playingInfoCache?.playConfig?.skipOpening ?: 0
                             if (skipOpening > 0) {
                                 seekToWithDanmakuReset(skipOpening * 1000L)
-                                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
+//                                toastManager.showToast("已为您自动跳过片头", ToastType.Info)
                             } else {
                                 seekToWithDanmakuReset(0)
                             }
@@ -2319,6 +2445,10 @@ fun rememberPlayMediaFunction(
             kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
                 try {
                     playerManager.setLoading(true)
+                    playerManager.initialSeekTargetMs = null
+                    playerManager.initialSeekCommandSent = false
+                    playerManager.initialSeekCompleted = false
+                    playerManager.initialResumePositionMs = null
                     playMedia(
                         guid = guid,
                         player = player,
@@ -2457,13 +2587,15 @@ private suspend fun playMedia(
             parentGuid = playInfoResponse.item.parentGuid
         )
 
-        var startPosition: Long = playInfoResponse.ts.toLong() * 1000
-        var isSkippedIntro = false
-        val skipOpening = playInfoResponse.playConfig?.skipOpening ?: 0
-        if (skipOpening > 0 && startPosition < skipOpening * 1000L) {
-            startPosition = skipOpening * 1000L
-            isSkippedIntro = true
-        }
+        val historyStartPosition: Long = playInfoResponse.ts.toLong() * 1000
+        playerManager.startupAutoSkippedIntroSegmentMillis = null
+        playerManager.initialResumePositionMs = historyStartPosition
+        playerManager.initialSeekTargetMs = historyStartPosition
+        playerManager.initialSeekCommandSent = false
+        playerManager.initialSeekCommandWallTimeMs = 0L
+        playerManager.initialSeekStableSinceWallTimeMs = 0L
+        playerManager.initialSeekLastObservedPositionMs = 0L
+        playerManager.initialSeekCompleted = false
         val videoStream = streamInfo.videoStream
         val audioStream =
             streamInfo.audioStreams?.firstOrNull { audioStream -> audioStream.guid == playInfoResponse.audioGuid }
@@ -2505,7 +2637,7 @@ private suspend fun playMedia(
                 playRequest,
                 cache,
                 streamInfo,
-                startPosition,
+                historyStartPosition,
                 mp4Parser,
                 playPlayViewModel,
                 playInfoResponse
@@ -2519,7 +2651,7 @@ private suspend fun playMedia(
         )
         playerViewModel.updatePlayingInfo(finalCache)
 
-        logger.i("startPosition: $startPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
+        logger.i("historyStartPosition: $historyStartPosition, effectiveStartPosition: ${playLinkResult.effectiveStartPosition}")
         // 设置字幕
         val extraFiles = subtitleStream?.let {
             val mediaExtraFiles = getMediaExtraFiles(it, playLinkResult.playLink)
@@ -2549,24 +2681,29 @@ private suspend fun playMedia(
             }
         }
 
+        playerManager.initialSeekCommandSent = false
+        playerManager.initialSeekCompleted = false
+        val seekTo: (Long) -> Unit = onSeekTo ?: { positionMillis ->
+            playerManager.danmakuResetNonce++
+            player.seekTo(positionMillis)
+        }
         startPlayback(
             player,
             actualPlayLink,
             playLinkResult.effectiveStartPosition,
             extraFiles,
             isM3u8,
-            onSeekTo ?: { positionMillis ->
-                playerManager.danmakuResetNonce++
-                player.seekTo(positionMillis)
+            onSeekTo = { positionMillis ->
+                playerManager.initialSeekCommandSent = true
+                playerManager.initialSeekCommandWallTimeMs = System.currentTimeMillis()
+                playerManager.initialSeekStableSinceWallTimeMs = 0L
+                seekTo(positionMillis)
             }
         )
-        if (isSkippedIntro) {
-            playerManager.toastManager.showToast("已为您自动跳过片头", ToastType.Info)
-        }
         // 调用playRecord接口
         callPlayRecord(
 //            itemGuid = guid,
-            ts = if ((startPosition / 1000).toInt() == 0) 1 else (startPosition / 1000).toInt(),
+            ts = (historyStartPosition / 1000).toInt().coerceAtLeast(1),
             playingInfoCache = finalCache,
             playRecordViewModel = playRecordViewModel,
             onSuccess = {
