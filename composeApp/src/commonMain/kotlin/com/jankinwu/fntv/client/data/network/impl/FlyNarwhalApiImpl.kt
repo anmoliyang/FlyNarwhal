@@ -115,7 +115,7 @@ class FlyNarwhalApiImpl : FlyNarwhalApi {
             "parent_guid" to parentGuid
         )
 
-        val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${"/danmu/get".removePrefix("/")}" else "$baseUrl/danmu/get"
+        val fullUrl = if (baseUrl.endsWith("/")) "$baseUrl${"/api/danmu/get".removePrefix("/")}" else "$baseUrl/api/danmu/get"
 
         return try {
             logger.i { "GET SSE request: $fullUrl, params: $parameters" }

@@ -106,7 +106,6 @@ import com.jankinwu.fntv.client.icons.ArrowLeft
 import com.jankinwu.fntv.client.icons.Back10S
 import com.jankinwu.fntv.client.icons.DanmuClose
 import com.jankinwu.fntv.client.icons.DanmuOpen
-import com.jankinwu.fntv.client.icons.DanmuSetting
 import com.jankinwu.fntv.client.icons.Forward10S
 import com.jankinwu.fntv.client.icons.Pause
 import com.jankinwu.fntv.client.icons.Play
@@ -118,6 +117,8 @@ import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.ui.component.common.dialog.AddNasSubtitleDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.CustomContentDialog
 import com.jankinwu.fntv.client.ui.component.common.dialog.SubtitleSearchDialog
+import com.jankinwu.fntv.client.ui.component.player.DanmakuOverlay
+import com.jankinwu.fntv.client.ui.component.player.DanmakuSettingsMenu
 import com.jankinwu.fntv.client.ui.component.player.EpisodeSelectionFlyout
 import com.jankinwu.fntv.client.ui.component.player.FullScreenControl
 import com.jankinwu.fntv.client.ui.component.player.NextEpisodePreviewFlyout
@@ -149,6 +150,7 @@ import com.jankinwu.fntv.client.utils.SubtitleCue
 import com.jankinwu.fntv.client.utils.calculateOptimalPlayerWindowSize
 import com.jankinwu.fntv.client.utils.callPlayRecord
 import com.jankinwu.fntv.client.utils.rememberSmoothVideoTime
+import com.jankinwu.fntv.client.viewmodel.DanmakuViewModel
 import com.jankinwu.fntv.client.viewmodel.EpisodeListViewModel
 import com.jankinwu.fntv.client.viewmodel.MediaPViewModel
 import com.jankinwu.fntv.client.viewmodel.PlayInfoViewModel
@@ -163,9 +165,6 @@ import com.jankinwu.fntv.client.viewmodel.SubtitleUploadViewModel
 import com.jankinwu.fntv.client.viewmodel.TagViewModel
 import com.jankinwu.fntv.client.viewmodel.UiState
 import com.jankinwu.fntv.client.viewmodel.UserInfoViewModel
-import com.jankinwu.fntv.client.viewmodel.DanmakuViewModel
-import com.jankinwu.fntv.client.ui.component.player.DanmakuOverlay
-import com.jankinwu.fntv.client.ui.component.player.DanmakuSettingsMenu
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
 import io.github.alexzhirkevich.compottie.rememberLottiePainter
@@ -381,6 +380,13 @@ fun PlayerOverlay(
     LaunchedEffect(isEpisode, playingInfoCache?.currentVideoStream?.mediaGuid) {
         val episodeGuid = if (isEpisode) playingInfoCache?.currentVideoStream?.mediaGuid else null
         smartAnalysisStatusViewModel.updateEpisodeGuid(episodeGuid?.takeIf { it.isNotBlank() })
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            smartAnalysisStatusViewModel.updateEpisodeGuid(null)
+            smartAnalysisStatusViewModel.stopPolling()
+        }
     }
 
     LaunchedEffect(episodeListState) {

@@ -6,7 +6,7 @@ import com.jankinwu.fntv.client.data.model.request.AnalyzeRequest
 import com.jankinwu.fntv.client.data.model.request.QueuedEpisode
 import com.jankinwu.fntv.client.data.model.request.UpdateSeasonStatusRequest
 import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
-import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
+import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
 import com.jankinwu.fntv.client.data.network.impl.FnOfficialApiImpl
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -21,7 +21,7 @@ import org.koin.java.KoinJavaComponent.inject
 class SmartAnalysisViewModel : BaseViewModel() {
 
     private val fnOfficialApi: FnOfficialApiImpl by inject(FnOfficialApiImpl::class.java)
-    private val flyNarwhalApi: FlyNarwhalApiImpl by inject(FlyNarwhalApiImpl::class.java)
+    private val flyNarwhalApi: FlyNarwhalApi by inject(FlyNarwhalApi::class.java)
     private val seasonListViewModel: SeasonListViewModel by inject(SeasonListViewModel::class.java)
     private val episodeListViewModel: EpisodeListViewModel by inject(EpisodeListViewModel::class.java)
 

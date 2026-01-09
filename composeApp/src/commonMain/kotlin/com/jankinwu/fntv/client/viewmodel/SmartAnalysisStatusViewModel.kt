@@ -5,7 +5,7 @@ import co.touchlab.kermit.Logger
 import com.jankinwu.fntv.client.data.model.response.AnalysisStatus
 import com.jankinwu.fntv.client.data.model.response.EpisodeSegmentsResponse
 import com.jankinwu.fntv.client.data.model.response.SmartAnalysisResult
-import com.jankinwu.fntv.client.data.network.impl.FlyNarwhalApiImpl
+import com.jankinwu.fntv.client.data.network.FlyNarwhalApi
 import com.jankinwu.fntv.client.data.store.AppSettingsStore
 import com.jankinwu.fntv.client.data.store.PlayingSettingsStore
 import kotlinx.coroutines.CancellationException
@@ -21,7 +21,7 @@ import org.koin.java.KoinJavaComponent.inject
 class SmartAnalysisStatusViewModel : BaseViewModel() {
 
     private val logger = Logger.withTag("SmartAnalysisStatusViewModel")
-    private val flyNarwhalApi: FlyNarwhalApiImpl by inject(FlyNarwhalApiImpl::class.java)
+    private val flyNarwhalApi: FlyNarwhalApi by inject(FlyNarwhalApi::class.java)
 
     private val _uiState = MutableStateFlow<UiState<SmartAnalysisResult<AnalysisStatus>>>(UiState.Initial)
     val uiState: StateFlow<UiState<SmartAnalysisResult<AnalysisStatus>>> = _uiState.asStateFlow()

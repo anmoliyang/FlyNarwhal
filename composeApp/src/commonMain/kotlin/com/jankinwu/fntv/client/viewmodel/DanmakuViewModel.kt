@@ -87,7 +87,12 @@ class DanmakuViewModel : BaseViewModel() {
                     guid,
                     parentGuid
                 )
-                _danmakuList.value = map[episodeNumber.toString()] ?: emptyList()
+                val episodeKey = episodeNumber.toString()
+                val list = map[episodeKey]
+                    ?: map["default"]
+                    ?: map.values.firstOrNull()
+                    ?: emptyList()
+                _danmakuList.value = list
             } catch (e: Exception) {
                 e.printStackTrace()
             }

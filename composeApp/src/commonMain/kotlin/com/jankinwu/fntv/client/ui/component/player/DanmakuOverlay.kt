@@ -118,6 +118,9 @@ fun DanmakuOverlay(
             LongArray(preparedItems.size) { idx -> preparedItems[idx].startTimeMillis }
         }
 
+        val preparedItemsState = rememberUpdatedState(preparedItems)
+        val preparedStartTimesMillisState = rememberUpdatedState(preparedStartTimesMillis)
+
         val activeItems = remember { mutableStateListOf<ActiveDanmaku>() }
         var nextSpawnIndex by remember { mutableStateOf(0) }
         var lastMediaTimeMillis by remember { mutableStateOf<Long?>(null) }
@@ -147,11 +150,20 @@ fun DanmakuOverlay(
         val topTrackCountState = rememberUpdatedState(topTrackCount)
         val bottomTrackCountState = rememberUpdatedState(bottomTrackCount)
 
-//        LaunchedEffect(danmakuListSignature) {
-//            nextSpawnIndex = nextSpawnIndex.coerceIn(0, preparedItems.size)
-//            debugMessage = "LIST_UPDATED size=${preparedItems.size} next=$nextSpawnIndex"
-//            debugMessageAtFrameNanos = latestFrameNanos
-//        }
+        LaunchedEffect(danmakuListSignature) {
+            val mediaTimeMillis = currentTimeState.value
+            activeItems.clear()
+            nextSpawnIndex = preparedStartTimesMillis.lowerBound(mediaTimeMillis)
+            scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+            reverseTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
+            topTrackAvailableAtNanos = LongArray(topTrackCountState.value) { Long.MIN_VALUE }
+            bottomTrackAvailableAtNanos = LongArray(bottomTrackCountState.value) { Long.MIN_VALUE }
+            realPlayheadNanos = 0L
+            lastMediaTimeMillis = null
+            lastFrameTimeNanos = null
+            debugMessage = "LIST_UPDATED size=${preparedItems.size} next=$nextSpawnIndex"
+            debugMessageAtFrameNanos = latestFrameNanos
+        }
 
         LaunchedEffect(scrollTrackCount, topTrackCount, bottomTrackCount) {
             val nowNanos = realPlayheadNanos
@@ -202,13 +214,15 @@ fun DanmakuOverlay(
                 withFrameNanos { now -> frameTimeNanos = now }
                 latestFrameNanos = frameTimeNanos
 
+                val preparedItemsSnapshot = preparedItemsState.value
+                val preparedStartTimesSnapshot = preparedStartTimesMillisState.value
                 val mediaTimeMillis = currentTimeState.value
                 val resetValue = resetNonceState.value
                 if (resetValue != lastAppliedResetNonce) {
-//                    debugMessage = "RESET_SIGNAL value=$resetValue active=${activeItems.size}"
-//                    debugMessageAtFrameNanos = frameTimeNanos
+                    debugMessage = "RESET_SIGNAL value=$resetValue active=${activeItems.size}"
+                    debugMessageAtFrameNanos = frameTimeNanos
                     activeItems.clear()
-                    nextSpawnIndex = preparedStartTimesMillis.lowerBound(mediaTimeMillis)
+                    nextSpawnIndex = preparedStartTimesSnapshot.lowerBound(mediaTimeMillis)
                     scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
                     reverseTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
                     topTrackAvailableAtNanos = LongArray(topTrackCountState.value) { Long.MIN_VALUE }
@@ -252,7 +266,7 @@ fun DanmakuOverlay(
 
                 if (deltaMediaMillis < 0L || absDeltaMediaMillis > 3_000L) {
                     activeItems.clear()
-                    nextSpawnIndex = preparedStartTimesMillis.lowerBound(mediaTimeMillis)
+                    nextSpawnIndex = preparedStartTimesSnapshot.lowerBound(mediaTimeMillis)
                     scrollTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
                     reverseTrackAvailableAtNanos = LongArray(scrollTrackCountState.value) { Long.MIN_VALUE }
                     topTrackAvailableAtNanos = LongArray(topTrackCountState.value) { Long.MIN_VALUE }
@@ -277,8 +291,8 @@ fun DanmakuOverlay(
                 var localTopTrackAvailableAtNanos = topTrackAvailableAtNanos
                 var localBottomTrackAvailableAtNanos = bottomTrackAvailableAtNanos
 
-                while (localNextIndex < preparedItems.size && preparedItems[localNextIndex].startTimeMillis <= mediaTimeMillis) {
-                    val prepared = preparedItems[localNextIndex]
+                while (localNextIndex < preparedItemsSnapshot.size && preparedItemsSnapshot[localNextIndex].startTimeMillis <= mediaTimeMillis) {
+                    val prepared = preparedItemsSnapshot[localNextIndex]
                     val layout = textMeasurer.measure(
                         text = androidx.compose.ui.text.AnnotatedString(prepared.danmaku.text),
                         style = measureTextStyleState.value,
