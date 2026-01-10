@@ -9,8 +9,6 @@ import com.jankinwu.fntv.client.ui.component.common.ToastManager
 import com.jankinwu.fntv.client.ui.component.common.ToastType
 import com.jankinwu.fntv.client.viewmodel.NasAuthViewModel
 import com.multiplatform.webview.cookie.Cookie
-import com.multiplatform.webview.web.WebViewNavigator
-import com.multiplatform.webview.web.WebViewState
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -20,8 +18,8 @@ import kotlinx.serialization.json.jsonPrimitive
 class NetworkMessageProcessor(
     private val nasAuthViewModel: NasAuthViewModel,
     private val toastManager: ToastManager,
-    private val webViewState: WebViewState,
-    private val navigator: WebViewNavigator,
+    private val setCookie: (String, Cookie) -> Unit,
+    private val loadUrl: (String) -> Unit,
     private val onLoginSuccess: (LoginHistory) -> Unit,
     private val fnId: String,
     private val autoLoginUsername: String?
@@ -93,11 +91,11 @@ class NetworkMessageProcessor(
                                 value = parts[1],
                                 domain = domain
                             )
-                            webViewState.cookieManager.setCookie(currentBaseUrl, cookieObj)
+                            setCookie(currentBaseUrl, cookieObj)
                         }
                     }
                     isSysConfigLoaded = true
-                    navigator.loadUrl(targetUrl)
+                    loadUrl(targetUrl)
                 } catch (e: Exception) {
                     isSysConfigInFlight = false
                     logger.e("Failed to get sys config", e)
@@ -115,16 +113,22 @@ class NetworkMessageProcessor(
         capturedRememberPassword: Boolean
     ) {
         if (!isAuthRequested) {
-            val body = json["body"]?.jsonPrimitive?.contentOrNull
-            if (!body.isNullOrBlank()) {
-                try {
+            val directCode = json["code"]?.jsonPrimitive?.contentOrNull
+            val code = if (!directCode.isNullOrBlank()) {
+                directCode
+            } else {
+                val body = json["body"]?.jsonPrimitive?.contentOrNull
+                if (body.isNullOrBlank()) return
+                runCatching {
                     val bodyJson = Json.parseToJsonElement(body).jsonObject
-                    val data = bodyJson["data"]?.jsonObject
-                    val code = data?.get("code")?.jsonPrimitive?.contentOrNull
-                    if (code != null) {
-                        isAuthRequested = true
-                        try {
-                            val response = nasAuthViewModel.authAndReturn(code)
+                    bodyJson["data"]?.jsonObject?.get("code")?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+            }
+
+            if (!code.isNullOrBlank()) {
+                isAuthRequested = true
+                try {
+                    val response = nasAuthViewModel.authAndReturn(code)
                             val token = response.token
                             if (token.isNotBlank()) {
                                 AccountDataCache.authorization = token
@@ -156,14 +160,10 @@ class NetworkMessageProcessor(
                                 isAuthRequested = false
                                 toastManager.showToast("登录失败: Token 为空", ToastType.Failed)
                             }
-                        } catch (e: Exception) {
-                            isAuthRequested = false
-                            logger.e("OAuth result failed", e)
-                            toastManager.showToast("登录失败: ${e.message}", ToastType.Failed)
-                        }
-                    }
                 } catch (e: Exception) {
-                    logger.e("Failed to parse OAuth response", e)
+                    isAuthRequested = false
+                    logger.e("OAuth result failed", e)
+                    toastManager.showToast("登录失败: ${e.message}", ToastType.Failed)
                 }
             }
         }

@@ -309,6 +309,7 @@ kotlin {
             implementation(libs.filekit.coil)
             implementation(libs.multiplatform.markdown.renderer)
             implementation(libs.compose.webview)
+            implementation("com.saralapps:composemultiplatformwebview:0.1.5")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
