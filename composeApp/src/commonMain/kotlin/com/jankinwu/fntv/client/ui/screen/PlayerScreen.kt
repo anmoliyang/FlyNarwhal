@@ -47,6 +47,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.key.Key
@@ -3292,43 +3293,125 @@ fun PlayerTopBar(
     val mediaPViewModel: MediaPViewModel = koinViewModel()
     val playerViewModel: PlayerViewModel = koinViewModel()
     val playingInfoCache by playerViewModel.playingInfoCache.collectAsState()
-    if (platform is Platform.MacOS) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Black.copy(alpha = 0.6f),
+                        Color.Transparent
+                    )
+                )
+            )
+            .padding(bottom = 32.dp)
+    ) {
+        if (platform is Platform.MacOS) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 80.dp),
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val interaction = remember { MutableInteractionSource() }
-                NavigationDefaults.BackButton(
-                    onClick = {
-                        mediaPlayer.stopPlayback()
-                        playerViewModel.updatePlayingInfo(null)
-                        playerViewModel.updateSubtitleSettings(SubtitleSettings())
-                        onBack()
-                    },
-                    interaction = interaction,
-                    icon = {
-                        FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 80.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val interaction = remember { MutableInteractionSource() }
+                    NavigationDefaults.BackButton(
+                        onClick = {
+                            mediaPlayer.stopPlayback()
+                            playerViewModel.updatePlayingInfo(null)
+                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
+                            onBack()
+                        },
+                        interaction = interaction,
+                        icon = {
+                            FontIconDefaults.BackIcon(interaction, size = FontIconSize(16f))
+                        }
+                    )
+                }
+                Box(
+                    modifier = Modifier.align(Alignment.Center),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isEpisode) {
+                        Text(
+                            text = buildMacOsEpisodeTitle(mediaTitle, subhead),
+                            style = LocalTypography.current.title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Text(
+                            text = mediaTitle,
+                            style = LocalTypography.current.title,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
-                )
+                }
             }
-            Box(
-                modifier = Modifier.align(Alignment.Center),
-                contentAlignment = Alignment.Center
+        } else {
+            Row(
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .padding(start = 20.dp, top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                var isHovered by remember { mutableStateOf(false) }
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(
+                            color = if (isHovered) Color.White.copy(alpha = 0.1f) else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .onPointerEvent(PointerEventType.Enter) { isHovered = true }
+                        .onPointerEvent(PointerEventType.Exit) { isHovered = false }
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {
+                                mediaPlayer.stopPlayback()
+                                playingInfoCache?.isUseDirectLink?.let {
+                                    if (!it) {
+                                        mediaPViewModel.quit(
+                                            MediaPRequest(
+                                                playLink = playingInfoCache?.playLink
+                                                    ?: ""
+                                            ),
+                                            updateState = false
+                                        )
+                                    }
+                                }
+                                // 清除缓存
+                                playerViewModel.updatePlayingInfo(null)
+                                playerViewModel.updateSubtitleSettings(SubtitleSettings())
+                                onBack()
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = ArrowLeft,
+                        contentDescription = "返回",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(20.dp)
+                    )
+                }
                 if (isEpisode) {
                     Text(
-                        text = buildMacOsEpisodeTitle(mediaTitle, subhead),
+                        text = buildEpisodeTitle(mediaTitle, subhead),
                         style = LocalTypography.current.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
                 } else {
@@ -3336,78 +3419,10 @@ fun PlayerTopBar(
                         text = mediaTitle,
                         style = LocalTypography.current.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .padding(top = 12.dp)
-                .padding(start = 20.dp, top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.Start),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            var isHovered by remember { mutableStateOf(false) }
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .background(
-                        color = if (isHovered) Color.White.copy(alpha = 0.1f) else Color.Transparent,
-                        shape = CircleShape
-                    )
-                    .onPointerEvent(PointerEventType.Enter) { isHovered = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHovered = false }
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {
-                            mediaPlayer.stopPlayback()
-                            playingInfoCache?.isUseDirectLink?.let {
-                                if (!it) {
-                                    mediaPViewModel.quit(
-                                        MediaPRequest(
-                                            playLink = playingInfoCache?.playLink
-                                                ?: ""
-                                        ),
-                                        updateState = false
-                                    )
-                                }
-                            }
-                            // 清除缓存
-                            playerViewModel.updatePlayingInfo(null)
-                            playerViewModel.updateSubtitleSettings(SubtitleSettings())
-                            onBack()
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = ArrowLeft,
-                    contentDescription = "返回",
-                    tint = Color.White,
-                    modifier = Modifier
-                        .size(20.dp)
-                )
-            }
-            if (isEpisode) {
-                Text(
-                    text = buildEpisodeTitle(mediaTitle, subhead),
-                    style = LocalTypography.current.title,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            } else {
-                Text(
-                    text = mediaTitle,
-                    style = LocalTypography.current.title,
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }
