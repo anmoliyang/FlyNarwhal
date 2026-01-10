@@ -85,6 +85,8 @@ import com.jankinwu.fntv.client.manager.LoginStateManager
 import com.jankinwu.fntv.client.manager.LoginStateManager.handleLogin
 import com.jankinwu.fntv.client.manager.PreferencesManager
 import com.jankinwu.fntv.client.isDesktop
+import com.jankinwu.fntv.client.isLinux
+import com.jankinwu.fntv.client.isMacOS
 import com.jankinwu.fntv.client.isWindows
 import com.jankinwu.fntv.client.ui.component.common.ComponentNavigator
 import com.jankinwu.fntv.client.ui.component.common.NumberInput
@@ -162,6 +164,13 @@ fun LoginScreen(
     val toastManager = rememberToastManager()
     val isWebViewInitialized = LocalWebViewInitialized.current
     val webViewInitError = LocalWebViewInitError.current
+    val isLinuxPlatform = remember {
+        runCatching { currentPlatform() }.getOrNull()?.isLinux() == true
+    }
+    val isMacOSPlatform = remember {
+        runCatching { currentPlatform() }.getOrNull()?.isMacOS() == true
+    }
+    val isNasLoginDisabledPlatform = isLinuxPlatform || isMacOSPlatform
     val shouldBlockWebViewDependency = remember {
         val platform = runCatching { currentPlatform() }.getOrNull()
         platform?.let { it.isDesktop() && !it.isWindows() } ?: true
@@ -191,6 +200,11 @@ fun LoginScreen(
         // 加载历史记录
         val preferencesManager = PreferencesManager.getInstance()
         loginHistoryList = preferencesManager.loadLoginHistory()
+
+        if (isNasLoginDisabledPlatform) {
+            isNasLogin = false
+            AccountDataCache.isNasLogin = false
+        }
     }
 
     // 自动聚焦 host 输入框
@@ -251,12 +265,12 @@ fun LoginScreen(
                 // 检查是否是证书错误
 //                if (state.message.contains("PKIX path building failed") || state.message.contains("unable to find valid certification path")) {
 //                    // Todo 这里应该显示一个对话框询问用户是否信任证书
-//                    logger.w("检测到SSL证书错误，需要用户确认是否信任证书")
+//                    logger.w("检测到 SSL 证书错误，需要用户确认是否信任证书")
 //                }
             }
 
             else -> {
-                // 其他状态，如Initial或Loading，可以不做处理
+                // 其他状态，如 Initial 或 Loading，可以不做处理
             }
         }
     }
@@ -388,7 +402,7 @@ fun LoginScreen(
                                     .focusRequester(hostFocusRequester),
                                 label = {
                                     Text(
-                                        "请输入IP、域名或 FN ID",
+                                        "请输入 IP、域名或 FN ID",
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -552,45 +566,29 @@ fun LoginScreen(
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "使用 NAS 登录",
-                            color = Colors.TextSecondaryColor,
-                            fontSize = 16.sp
-                        )
-                        Switcher(
-                            isNasLogin,
-                            {
-                                isNasLogin = !isNasLogin
-//                                if (it) {
-//                                    if (!shouldBlockWebViewDependency || isWebViewInitialized) {
-//                                        isNasLogin = true
-//                                        if (!isWebViewInitialized) {
-//                                            val msg =
-//                                                if (webViewInitError != null) "组件加载失败，NAS 登录页面可能无法打开，可在弹窗中重试初始化"
-//                                                else "组件正在初始化，NAS 登录页面会在初始化完成后显示"
-//                                            toastManager.showToast(msg, ToastType.Info)
-//                                        }
-//                                    } else {
-//                                        val msg =
-//                                            if (webViewInitError != null) "组件加载失败，无法使用 NAS 登录"
-//                                            else "组件正在初始化，请稍后..."
-//                                        toastManager.showToast(msg, ToastType.Failed)
-//                                    }
-//                                } else {
-//                                    isNasLogin = false
-//                                }
-                            },
-                            styles = if (isNasLogin) {
-                                selectedSwitcherStyle()
-                            } else {
-                                SwitcherDefaults.defaultSwitcherStyle()
-                            },
-                        )
+                    if (!isNasLoginDisabledPlatform) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "使用 NAS 登录",
+                                color = Colors.TextSecondaryColor,
+                                fontSize = 16.sp
+                            )
+                            Switcher(
+                                isNasLogin,
+                                {
+                                    isNasLogin = !isNasLogin
+                                },
+                                styles = if (isNasLogin) {
+                                    selectedSwitcherStyle()
+                                } else {
+                                    SwitcherDefaults.defaultSwitcherStyle()
+                                },
+                            )
+                        }
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -612,6 +610,10 @@ fun LoginScreen(
                     Button(
                         onClick = {
                             if (isNasLogin) {
+                                if (isNasLoginDisabledPlatform) {
+                                    toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
+                                    return@Button
+                                }
                                 if (!isWebViewInitialized) {
                                     if (shouldBlockWebViewDependency) {
                                         val msg =
@@ -667,6 +669,10 @@ fun LoginScreen(
                                     loginViewModel = loginViewModel,
                                     rememberPassword = rememberPassword,
                                     onProbeRequired = { url ->
+                                        if (isNasLoginDisabledPlatform) {
+                                            toastManager.showToast("当前平台暂时不支持 FN ID 登录", ToastType.Failed)
+                                            return@handleLogin
+                                        }
                                         if (!isWebViewInitialized && shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，无法验证服务器"
@@ -745,6 +751,10 @@ fun LoginScreen(
                     },
                     onSelect = onSelect@{ history ->
                         if (history.isNasLogin) {
+                            if (isNasLoginDisabledPlatform) {
+                                toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
+                                return@onSelect
+                            }
                             if (!isWebViewInitialized) {
                                 if (shouldBlockWebViewDependency) {
                                     val msg =
@@ -812,6 +822,10 @@ fun LoginScreen(
                                     loginViewModel = loginViewModel,
                                     rememberPassword = true,
                                     onProbeRequired = { url ->
+                                        if (isNasLoginDisabledPlatform) {
+                                            toastManager.showToast("当前平台暂不支持 NAS 登录", ToastType.Failed)
+                                            return@handleLogin
+                                        }
                                         if (!isWebViewInitialized && shouldBlockWebViewDependency) {
                                             val msg =
                                                 if (webViewInitError != null) "组件加载失败，无法验证服务器"

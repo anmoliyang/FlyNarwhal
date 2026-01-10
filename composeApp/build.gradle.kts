@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 val osName = System.getProperty("os.name").lowercase()
 val osArch = System.getProperty("os.arch").lowercase()
 
-val appVersion = "1.6.2"
+val appVersion = "1.7.0"
 val appVersionSuffix = ""
 
 val platformStr = when {
@@ -86,6 +86,8 @@ val downloadKcefBundle by tasks.registering(JavaExec::class) {
     )
 
     outputs.dir(installDir)
+
+    enabled = osName.contains("win")
 }
 
 val prepareKcefResources by tasks.registering(Copy::class) {
@@ -94,6 +96,8 @@ val prepareKcefResources by tasks.registering(Copy::class) {
     val sourceDir = kcefPreparedDir.map { it.dir("kcef-bundle") }
     from(sourceDir)
     into(proxyResourcesDir.map { it.dir("kcef-bundle") })
+
+    enabled = osName.contains("win")
 }
 
 val prepareProxyResources by tasks.registering(Copy::class) {
@@ -206,6 +210,7 @@ val generateBuildConfig by tasks.registering {
     // Read secrets from environment variables or project properties
     val reportApiSecret = System.getenv("REPORT_API_SECRET") ?: project.findProperty("REPORT_API_SECRET")?.toString() ?: ""
     val reportUrl = System.getenv("REPORT_URL") ?: project.findProperty("REPORT_URL")?.toString() ?: ""
+    var flyNarwhalApiSecret = System.getenv("FLY_NARWHAL_API_SECRET") ?: project.findProperty("FLY_NARWHAL_API_SECRET")?.toString() ?: ""
 
     inputs.property("version", version)
     inputs.property("suffix", suffix)
@@ -224,6 +229,7 @@ val generateBuildConfig by tasks.registering {
                 const val VERSION_NAME = "$fullVersion"
                 const val REPORT_API_SECRET = "$reportApiSecret"
                 const val REPORT_URL = "$reportUrl"
+                const val FLY_NARWHAL_API_SECRET = "$flyNarwhalApiSecret"
             }
         """.trimIndent())
     }

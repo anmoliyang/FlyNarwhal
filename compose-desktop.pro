@@ -98,6 +98,8 @@
 
 # Generic dontwarn for unresolved references in libraries
 -dontwarn javafx.**
+-dontwarn androidx.compose.**
+-keep class androidx.compose.** { *; }
 -dontwarn com.jogamp.**
 -dontwarn jogamp.**
 -dontwarn org.eclipse.swt.**
@@ -126,6 +128,9 @@
 -dontwarn io.github.alexzhirkevich.compottie.**
 -dontwarn io.ktor.client.plugins.**
 -dontwarn androidx.compose.**
+-dontnote androidx.compose.**
+-keep class androidx.compose.** { *; }
+-keep interface androidx.compose.** { *; }
 -dontwarn coil3.**
 -dontwarn io.ktor.**
 -dontwarn kotlin.**

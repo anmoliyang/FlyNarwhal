@@ -146,7 +146,7 @@ fun DetailTags(
         val genresViewModel: GenresViewModel = koinViewModel<GenresViewModel>()
         val genresUiState = genresViewModel.uiState.collectAsState().value
         LaunchedEffect(genresUiState) {
-            if (genresUiState !is UiState.Success) {
+            if (genresUiState is UiState.Initial) {
                 genresViewModel.loadGenres()
             }
         }

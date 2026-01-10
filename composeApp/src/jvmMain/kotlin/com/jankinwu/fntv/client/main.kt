@@ -47,7 +47,6 @@ import com.jankinwu.fntv.client.ui.screen.PlayerManager
 import com.jankinwu.fntv.client.ui.screen.PlayerOverlay
 import com.jankinwu.fntv.client.ui.screen.updateLoginHistory
 import com.jankinwu.fntv.client.ui.window.PipPlayerWindow
-import com.jankinwu.fntv.client.ui.window.SplashScreen
 import com.jankinwu.fntv.client.utils.ComposeViewModelStoreOwner
 import com.jankinwu.fntv.client.utils.ConsoleLogWriter
 import com.jankinwu.fntv.client.utils.DesktopContext
@@ -114,22 +113,31 @@ fun main() {
     val logger = Logger.withTag("main")
     logger.i { "Application started. Logs directory: ${logDir.absolutePath}" }
 
-    // Cleanup old KCEF directories
-    val baseDir = kcefBaseDir()
-    val installDir = File(baseDir, "kcef-bundle-${BuildConfig.VERSION_NAME}")
-    val cacheDir = File(baseDir, "kcef-cache-${BuildConfig.VERSION_NAME}")
-    cleanupOldKcefDirs(baseDir)
-    logger.i { "KCEF base directory: ${baseDir.absolutePath}" }
-    logger.i { "KCEF install directory: ${installDir.absolutePath}" }
-    logger.i { "KCEF cache directory: ${cacheDir.absolutePath}" }
+    val platform = currentPlatformDesktop()
+    val shouldInitKcef = platform.isWindows()
+
+    val baseDir = if (shouldInitKcef) kcefBaseDir() else null
+    val installDir = baseDir?.let { File(it, "kcef-bundle-${BuildConfig.VERSION_NAME}") }
+    val cacheDir = baseDir?.let { File(it, "kcef-cache-${BuildConfig.VERSION_NAME}") }
+
+    if (shouldInitKcef && baseDir != null && installDir != null && cacheDir != null) {
+        cleanupOldKcefDirs(baseDir)
+        logger.i { "KCEF base directory: ${baseDir.absolutePath}" }
+        logger.i { "KCEF install directory: ${installDir.absolutePath}" }
+        logger.i { "KCEF cache directory: ${cacheDir.absolutePath}" }
+    } else {
+        logger.i { "KCEF bootstrap disabled for platform: ${platform::class.simpleName}" }
+    }
 
     application {
-        LaunchedEffect(Unit) {
-            WebViewBootstrap.start(
-                installDir = installDir,
-                cacheDir = cacheDir,
-                logDir = logDir
-            )
+        if (shouldInitKcef && installDir != null && cacheDir != null) {
+            LaunchedEffect(Unit) {
+                WebViewBootstrap.start(
+                    installDir = installDir,
+                    cacheDir = cacheDir,
+                    logDir = logDir
+                )
+            }
         }
 
         DisposableEffect(Unit) {
@@ -143,9 +151,11 @@ fun main() {
         val webViewRestartRequired by WebViewBootstrap.restartRequired.collectAsState()
         val webViewInitError by WebViewBootstrap.initError.collectAsState()
 
-        DisposableEffect(Unit) {
-            onDispose {
-                KCEF.disposeBlocking()
+        if (shouldInitKcef) {
+            DisposableEffect(Unit) {
+                onDispose {
+                    KCEF.disposeBlocking()
+                }
             }
         }
 
@@ -226,37 +236,14 @@ fun main() {
                     DesktopContext(playerState, dataDir, cacheDir, logDir, ExtraWindowProperties())
                 }
 
-                val osName = System.getProperty("os.name").lowercase()
-                val isMacOS = osName.contains("mac")
-
-                if (isMacOS && !webViewInitialized && webViewInitError == null) {
-                    Window(
-                        onCloseRequest = ::exitApplication,
-                        title = title,
-                        state = rememberWindowState(
-                            width = 400.dp,
-                            height = 200.dp,
-                            position = WindowPosition(Alignment.Center)
-                        ),
-                        undecorated = true,
-                        transparent = true,
-                        icon = icon
-                    ) {
-                        SplashScreen(
-                            icon = icon,
-                            title = title,
-                            error = webViewInitError
-                        )
-                    }
-                } else {
-                    // 主窗口
-                    Window(
-                        onCloseRequest = ::exitApplication,
-                        state = mainState,
-                        title = title,
-                        icon = icon,
-                        visible = !playerManager.playerState.isVisible
-                    ) {
+                // 主窗口
+                Window(
+                    onCloseRequest = ::exitApplication,
+                    state = mainState,
+                    title = title,
+                    icon = icon,
+                    visible = !playerManager.playerState.isVisible
+                ) {
                         val shouldStartMaximized = remember { AppSettingsStore.isWindowMaximized }
                         DisposableEffect(shouldStartMaximized) {
                             if (!shouldStartMaximized) return@DisposableEffect onDispose {}
@@ -368,9 +355,9 @@ fun main() {
                         }
                     }
 
-                    // 播放器窗口
-                    if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
-                        Window(
+                // 播放器窗口
+                if (playerManager.playerState.isVisible && !playerManager.isPipMode) {
+                    Window(
                             onCloseRequest = {
                                 if (PlayingSettingsStore.playerIsFullscreen) {
                                     playerState.placement = WindowPlacement.Floating
@@ -492,6 +479,12 @@ fun main() {
 
                     val request = fnConnectWindowRequest
                     if (request != null) {
+                        if (!shouldInitKcef) {
+                            LaunchedEffect(request) {
+                                logger.i { "FnConnect WebView is disabled for platform: ${platform::class.simpleName}" }
+                                fnConnectWindowRequest = null
+                            }
+                        } else {
                         val fnConnectWindowState = rememberWindowState(
                             size = DpSize(980.dp, 720.dp),
                             position = WindowPosition.Aligned(Alignment.Center)
@@ -572,10 +565,10 @@ fun main() {
                                 }
                             }
                         }
+                        }
                     }
                 }
             }
-        }
     }
 }
 
