@@ -354,8 +354,8 @@ compose.desktop {
         }
 
         buildTypes.release.proguard {
-            isEnabled = false
-            obfuscate.set(false)
+            isEnabled = true
+            obfuscate.set(true)
             configurationFiles.from(project.rootDir.resolve("compose-desktop.pro"))
         }
         nativeDistributions {
