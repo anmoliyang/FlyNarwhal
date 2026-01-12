@@ -1775,8 +1775,24 @@ fun PlayerOverlay(
                         )
                     },
                     onAudioSelected = { audio ->
-                        val cache = playingInfoCache
+                        val cache = playerViewModel.playingInfoCache.value
                         if (cache != null) {
+                            playerViewModel.updatePlayingInfo(
+                                cache.copy(
+                                    currentAudioStream = audio
+                                )
+                            )
+                            callPlayRecord(
+                                ts = (mediaPlayer.getCurrentPositionMillis() / 1000).toInt(),
+                                playingInfoCache = cache,
+                                playRecordViewModel = playRecordViewModel,
+                                onSuccess = {
+                                    logger.i("切换音频时调用playRecord成功")
+                                },
+                                onError = {
+                                    logger.i("切换音频时调用playRecord失败：缓存为空")
+                                },
+                            )
                             val request = MediaPRequest(
                                 req = "media.resetAudio",
                                 reqId = "1234567890ABCDEF2s",
