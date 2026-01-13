@@ -95,6 +95,27 @@ class HlsSubtitleUtil(
             }
             return null
         }
+
+        fun findSubtitleUri(m3u8Content: String, subtitleStream: SubtitleStream): String? {
+            val regex = Regex("""#EXT-X-MEDIA:TYPE=SUBTITLES(.*)""")
+            val matches = regex.findAll(m3u8Content)
+            val targetLang = subtitleStream.language
+            var bestMatchUri: String? = null
+
+            for (match in matches) {
+                val attributes = match.groupValues[1]
+                val uriMatch = Regex("""URI="(.*?)"""").find(attributes)
+                val langMatch = Regex("""LANGUAGE="(.*?)"""").find(attributes)
+
+                if (uriMatch != null) {
+                    val uri = uriMatch.groupValues[1]
+                    val lang = langMatch?.groupValues?.get(1)
+                    if (lang == targetLang) return uri
+                    if (bestMatchUri == null) bestMatchUri = uri
+                }
+            }
+            return bestMatchUri
+        }
     }
 
     suspend fun initialize(startPositionMs: Long) {
@@ -368,26 +389,5 @@ class HlsSubtitleUtil(
 //                 header("Authorization", AccountDataCache.authorization)
 //            }
         }.bodyAsText()
-    }
-
-    private fun findSubtitleUri(m3u8Content: String, subtitleStream: SubtitleStream): String? {
-        val regex = Regex("""#EXT-X-MEDIA:TYPE=SUBTITLES(.*)""")
-        val matches = regex.findAll(m3u8Content)
-        val targetLang = subtitleStream.language 
-        var bestMatchUri: String? = null
-        
-        for (match in matches) {
-            val attributes = match.groupValues[1]
-            val uriMatch = Regex("""URI="(.*?)"""").find(attributes)
-            val langMatch = Regex("""LANGUAGE="(.*?)"""").find(attributes)
-            
-            if (uriMatch != null) {
-                val uri = uriMatch.groupValues[1]
-                val lang = langMatch?.groupValues?.get(1)
-                if (lang == targetLang) return uri 
-                if (bestMatchUri == null) bestMatchUri = uri
-            }
-        }
-        return bestMatchUri
     }
 }
