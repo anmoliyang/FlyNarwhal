@@ -2358,10 +2358,35 @@ fun PlayerControlRow(
                     onHoverStateChanged = onDanmakuSettingsHoverChanged
                 )
             }
+            val currentSubtitleStream = playingInfoCache?.currentSubtitleStream
+            var hasHlsSubtitlePlaylist by remember(
+                playingInfoCache?.playLink,
+                currentSubtitleStream?.guid
+            ) { mutableStateOf(false) }
+            LaunchedEffect(playingInfoCache?.playLink, currentSubtitleStream?.guid) {
+                hasHlsSubtitlePlaylist = false
+                val link = playingInfoCache?.playLink
+                val subtitle = currentSubtitleStream
+                if (!link.isNullOrBlank() && link.contains(".m3u8") && subtitle != null && subtitle.isExternal == 0) {
+                    hasHlsSubtitlePlaylist = try {
+                        val presetContent = HlsSubtitleUtil.fetchContent(fnOfficialClient, link)
+                        HlsSubtitleUtil.findSubtitleUri(presetContent, subtitle) != null
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+            }
+            val canAdjustSubtitle = remember(currentSubtitleStream?.guid, hasHlsSubtitlePlaylist) {
+                val subtitle = currentSubtitleStream
+                val isExternalSubtitle =
+                    subtitle != null && subtitle.isExternal == 1 && subtitle.format.lowercase() in listOf("srt", "ass", "vtt")
+                hasHlsSubtitlePlaylist || isExternalSubtitle
+            }
             SubtitleControlFlyout(
                 playingInfoCache = playingInfoCache,
                 isoTagData = isoTagData,
                 subtitleSettings = subtitleSettings,
+                canAdjustSubtitle = canAdjustSubtitle,
                 onSubtitleSettingsChanged = onSubtitleSettingsChanged,
                 onSubtitleSelected = { onSubtitleSelected?.invoke(it) },
                 onOpenSubtitleSearch = { onOpenSubtitleSearch?.invoke() },

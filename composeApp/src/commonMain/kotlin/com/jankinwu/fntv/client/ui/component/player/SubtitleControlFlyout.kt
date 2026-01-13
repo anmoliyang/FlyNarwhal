@@ -98,6 +98,7 @@ fun SubtitleControlFlyout(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
     subtitleSettings: SubtitleSettings,
+    canAdjustSubtitle: Boolean,
     onSubtitleSettingsChanged: (SubtitleSettings) -> Unit,
     onSubtitleSelected: (SubtitleStream?) -> Unit,
     onOpenSubtitleSearch: () -> Unit,
@@ -205,6 +206,7 @@ fun SubtitleControlFlyout(
                             SubtitleFlyoutContent(
                                 playingInfoCache = playingInfoCache,
                                 isoTagData = isoTagData,
+                                canAdjustSubtitle = canAdjustSubtitle,
                                 isAddMenuExpanded = isAddMenuExpanded,
                                 onAddMenuExpandedChanged = { isAddMenuExpanded = it },
                                 onSubtitleSelected = {
@@ -563,6 +565,7 @@ private fun FlyoutWithAnimation(
 fun SubtitleFlyoutContent(
     playingInfoCache: PlayingInfoCache?,
     isoTagData: IsoTagData?,
+    canAdjustSubtitle: Boolean,
     isAddMenuExpanded: Boolean,
     onAddMenuExpandedChanged: (Boolean) -> Unit,
     onSubtitleSelected: (SubtitleStream?) -> Unit,
@@ -602,10 +605,12 @@ fun SubtitleFlyoutContent(
                     // Adjustment Button
                     Box(
                         modifier = Modifier
+                            .alpha(if (canAdjustSubtitle) 1f else 0.4f)
+                            .pointerHoverIcon(if (canAdjustSubtitle) PointerIcon.Hand else PointerIcon.Default)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.Transparent)
                             .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-                            .clickable { onAdjustmentClicked() }
+                            .clickable(enabled = canAdjustSubtitle) { onAdjustmentClicked() }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text("调整", color = DefaultTextColor, fontSize = 12.sp)
