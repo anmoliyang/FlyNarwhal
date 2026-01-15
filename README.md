@@ -1,7 +1,7 @@
 <h1 align="center">Fly Narwhal</h1>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/anmoliyang/FlyNarwhal/refs/heads/master/img.png" width="600" />
+  <img src="https://raw.githubusercontent.com/anmoliyang/FlyNarwhal/refs/heads/master/img.svg" width="600" />
 </p>
 
 <div align="center">
